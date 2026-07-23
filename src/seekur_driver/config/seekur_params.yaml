@@ -1,0 +1,26 @@
+seekur_driver:
+  ros__parameters:
+    # Communication série
+    serial_port: "/dev/ttyUSB0"
+    baud_rate: 9600
+    timeout: 0.5
+    
+    # Frames
+    base_frame: "base_link"
+    odom_frame: "odom"
+    
+    # Limites de vitesse
+    max_linear_vel: 2.0    # m/s
+    max_angular_vel: 3.14  # rad/s
+    
+    # Paramètres physiques robot
+    wheel_separation: 0.33  # m (SeekurJR)
+    
+    # Publishing
+    publish_tf: true
+    odom_freq: 10.0        # Hz
+    battery_freq: 1.0      # Hz
+    diagnostics_freq: 1.0  # Hz
+    
+    # Debug
+    verbose: false
