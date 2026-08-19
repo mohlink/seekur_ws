@@ -1,0 +1,76 @@
+# =============================================================================
+# gz_bridge.yaml - Configuration du pont ROS2 <-> Gazebo Harmonic
+# =============================================================================
+#
+# Chaque entree definit UN pont entre un topic Gazebo (gz_topic_name) et un
+# topic ROS2 (ros_topic_name), avec conversion de type et direction.
+#
+# Directions possibles :
+#   GZ_TO_ROS  : Gazebo publie -> ROS2 recoit  (capteurs, odom, joint states)
+#   ROS_TO_GZ  : ROS2 publie   -> Gazebo recoit (cmd_vel)
+#   BIDIRECTIONAL : les deux sens (rare)
+#
+# Champ special ros_frame_id : quand present, il REMPLACE le frame_id du
+# message quand celui-ci traverse le pont dans le sens GZ_TO_ROS. C'est
+# ce qui nous permet d'eviter le static_transform_publisher pour le LiDAR.
+# =============================================================================
+
+
+# --- Horloge de simulation ---------------------------------------------------
+# Indispensable pour use_sim_time=true. Sans ca, tous les noeuds ROS2 restent
+# sur l'horloge mur et rejettent les messages "vieux de 56 ans".
+- ros_topic_name: "/clock"
+  gz_topic_name: "/clock"
+  ros_type_name: "rosgraph_msgs/msg/Clock"
+  gz_type_name: "gz.msgs.Clock"
+  direction: GZ_TO_ROS
+
+
+# --- Commande de vitesse : ROS2 -> Gazebo ------------------------------------
+# Twist NON stamped, coherent avec le protocole SeekurOS (pas de ros2_control).
+- ros_topic_name: "/cmd_vel"
+  gz_topic_name: "/cmd_vel"
+  ros_type_name: "geometry_msgs/msg/Twist"
+  gz_type_name: "gz.msgs.Twist"
+  direction: ROS_TO_GZ
+
+
+# --- Odometrie du robot : Gazebo -> ROS2 -------------------------------------
+- ros_topic_name: "/odom"
+  gz_topic_name: "/odom"
+  ros_type_name: "nav_msgs/msg/Odometry"
+  gz_type_name: "gz.msgs.Odometry"
+  direction: GZ_TO_ROS
+
+
+# --- Arbre TF publie par Gazebo : Gazebo -> ROS2 -----------------------------
+- ros_topic_name: "/tf"
+  gz_topic_name: "/tf"
+  ros_type_name: "tf2_msgs/msg/TFMessage"
+  gz_type_name: "gz.msgs.Pose_V"
+  direction: GZ_TO_ROS
+
+
+# --- Etats des joints (roues) : Gazebo -> ROS2 -------------------------------
+# Le plugin JointStatePublisher publie sur ce chemin complet cote Gazebo,
+# on le renomme en /joint_states cote ROS2 (que robot_state_publisher ecoute).
+- ros_topic_name: "/joint_states"
+  gz_topic_name: "/world/empty/model/seekur_jr/joint_state"
+  ros_type_name: "sensor_msgs/msg/JointState"
+  gz_type_name: "gz.msgs.Model"
+  direction: GZ_TO_ROS
+
+
+# --- LiDAR : Gazebo -> ROS2 --------------------------------------------------
+# NOTE (teste 2026-08) : le champ ros_frame_id est IGNORE par ros_gz_bridge
+# 1.0.x (ROS2 Jazzy) - il n'a pas ete retroporte depuis Rolling. Le frame_id
+# reste donc l'auto-genere Gazebo (seekur_jr/base_footprint/laser_scanner).
+# On le laisse ici comme documentation d'intention : sur une version plus
+# recente du bridge, il s'activera et le static_transform_publisher
+# 'lidar_frame_alias' du launch pourra etre supprime.
+- ros_topic_name: "/scan"
+  gz_topic_name: "/scan"
+  ros_type_name: "sensor_msgs/msg/LaserScan"
+  gz_type_name: "gz.msgs.LaserScan"
+  direction: GZ_TO_ROS
+  ros_frame_id: "laser_frame"

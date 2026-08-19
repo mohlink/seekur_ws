@@ -2,12 +2,16 @@
 """
 gazebo_simple.launch.py - Simulation SeekurJR SANS ros2_control
 
-Architecture (identique au robot réel) :
-    Twist sur /cmd_vel  ->  plugin DiffDrive natif de Gazebo  ->  mouvement
-    Gazebo  ->  /joint_states  ->  robot_state_publisher  ->  TF roues  ->  RViz2
+Architecture (identique au robot reel) :
+    Twist sur /cmd_vel -> plugin DiffDrive natif de Gazebo -> mouvement
+    Gazebo -> /joint_states -> robot_state_publisher -> TF roues -> RViz2
+    Gazebo -> /scan (frame renomme par bridge) -> RViz2 / nav2
 
-CORRECTION PRINCIPALE par rapport a la version precedente :
-    ajout du pont /joint_states (il manquait, d'ou les roues figees dans RViz2).
+BRIDGE : configuration centralisee dans config/gz_bridge.yaml.
+Le champ 'ros_frame_id' du YAML remplace le frame_id auto-genere par
+Gazebo, ce qui remplace elegamment le static_transform_publisher qu'on
+utilisait avant pour aliaser 'seekur_jr/base_footprint/laser_scanner'
+vers 'laser_frame'.
 """
 
 from launch import LaunchDescription
@@ -19,15 +23,10 @@ from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Comm
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.parameter_descriptions import ParameterValue
 
-# --- Parametres a ajuster si besoin -----------------------------------------
-# Le topic Gazebo des joint states depend du nom du MONDE et du nom du MODELE.
-# Monde 'empty.sdf'  -> nom de monde 'empty'
-# Spawn '-name seekur_jr' -> nom de modele 'seekur_jr'
-# A verifier au premier lancement avec :  gz topic -l | grep joint_state
-WORLD_NAME = 'empty'
+# Nom du modele spawn dans Gazebo (utilise aussi dans le YAML du bridge
+# pour construire /world/empty/model/<MODEL_NAME>/joint_state).
+# Si tu changes ceci, modifie aussi gz_bridge.yaml.
 MODEL_NAME = 'seekur_jr'
-GZ_JOINT_STATE_TOPIC = f'/world/{WORLD_NAME}/model/{MODEL_NAME}/joint_state'
-# ----------------------------------------------------------------------------
 
 
 def generate_launch_description():
@@ -42,6 +41,10 @@ def generate_launch_description():
         Command(['xacro ', xacro_file]),
         value_type=str
     )
+
+    bridge_config = PathJoinSubstitution([
+        FindPackageShare('seekur_driver'), 'config', 'gz_bridge.yaml'
+    ])
 
     return LaunchDescription([
 
@@ -88,29 +91,36 @@ def generate_launch_description():
         ),
 
         # --- Pont ROS2 <-> Gazebo -------------------------------------------
+        # Toute la config est dans gz_bridge.yaml (topics, types, direction,
+        # et ros_frame_id pour renommer le frame du LiDAR au vol).
         Node(
             package='ros_gz_bridge',
             executable='parameter_bridge',
             name='gz_bridge',
+            parameters=[{
+                'config_file': bridge_config,
+                'use_sim_time': use_sim_time,
+            }],
+            output='screen'
+        ),
+
+        # --- Alias TF pour le frame_id du LiDAR ------------------------------
+        # Gazebo tamponne ses scans avec un frame_id auto-genere :
+        #   seekur_jr/base_footprint/laser_scanner
+        # alors que l'URDF ne connait que 'laser_frame'.
+        # Le champ ros_frame_id de gz_bridge.yaml reglerait ca proprement,
+        # mais il est IGNORE par ros_gz_bridge 1.0.x (Jazzy) - teste 2026-08.
+        # D'ou cette TF identite en attendant une version du bridge qui le
+        # supporte (voir note dans gz_bridge.yaml).
+        Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name='lidar_frame_alias',
             arguments=[
-                # Horloge de simulation (indispensable avec use_sim_time:=true)
-                '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
-
-                # Commande de vitesse : ROS2 -> Gazebo, en Twist NON stamped
-                '/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist',
-
-                # Retours Gazebo -> ROS2
-                '/odom@nav_msgs/msg/Odometry[gz.msgs.Odometry',
-                '/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
-                '/tf@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V',
-
-                # *** LA LIGNE QUI MANQUAIT ***
-                # Etats des joints (roues) : Gazebo -> ROS2
-                GZ_JOINT_STATE_TOPIC + '@sensor_msgs/msg/JointState[gz.msgs.Model',
-            ],
-            remappings=[
-                # robot_state_publisher ecoute /joint_states
-                (GZ_JOINT_STATE_TOPIC, '/joint_states'),
+                '--x', '0', '--y', '0', '--z', '0',
+                '--roll', '0', '--pitch', '0', '--yaw', '0',
+                '--frame-id', 'laser_frame',
+                '--child-frame-id', f'{MODEL_NAME}/base_footprint/laser_scanner',
             ],
             parameters=[{'use_sim_time': use_sim_time}],
             output='screen'
