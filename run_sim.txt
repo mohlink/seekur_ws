@@ -1,0 +1,17 @@
+cd seekur_ws/
+conda deactivate
+source /opt/ros/jazzy/setup.bash
+source install/setup.bash
+
+pour lancer Gazebo avec le robot et les capteur
+ros2 launch seekur_driver gazebo_simple.launch.py
+
+## pour simuler le protocole seekur_Jr dans Gazebo
+ros2 run seekur_driver seekur_protocol_simulator
+
+## Pour deplacer le mobile
+python3 ~/seekurJr/claude/seekur_interactive1_tcp.py --port tcp://localhost:9999
+
+
+
+colcon build --packages-select seekur_driver

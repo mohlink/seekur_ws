@@ -1,0 +1,84 @@
+# =============================================================================
+# slam_toolbox_params.yaml - Configuration slam_toolbox pour SeekurJR
+#
+# Mode : online_async
+#   -> construit la carte en temps reel pendant qu'on conduit
+#   -> retour rapide, robuste, adapte au LiDAR seul
+#
+# Adapte au LMS111 (LiDAR 2D 270 deg, portee 20 m, 25 Hz).
+# =============================================================================
+
+slam_toolbox:
+  ros__parameters:
+
+    # ----- Horloge -----------------------------------------------------------
+    use_sim_time: true
+
+    # ----- Solveur (celui qui optimise le graphe de poses) -------------------
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    ceres_trust_strategy: LEVENBERG_MARQUARDT
+    ceres_dogleg_type: TRADITIONAL_DOGLEG
+    ceres_loss_function: None
+
+    # ----- Frames et topics --------------------------------------------------
+    # slam_toolbox publie la transformation map -> odom.
+    # C'est l'odom (deja fournie par Gazebo via /odom) qui reste responsable
+    # de odom -> base_footprint.
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_footprint
+    scan_topic: /scan
+
+    # ----- Mode --------------------------------------------------------------
+    mode: mapping    # options : mapping | localization
+
+    # ----- Frequence de traitement -------------------------------------------
+    # Le LiDAR publie a 25 Hz. On traite un scan sur 5 environ -> 5 Hz suffit
+    # largement pour SLAM 2D et evite de charger le CPU inutilement.
+    map_update_interval: 5.0     # secondes entre 2 mises a jour de la carte
+    minimum_time_interval: 0.2   # ne traite pas 2 scans a moins de 0.2s d'ecart
+
+    # ----- Resolution de la carte --------------------------------------------
+    # 5 cm par pixel : compromis classique pour du LiDAR 2D indoor.
+    # Plus fin (2 cm) -> carte plus detaillee mais 6x plus lourde.
+    resolution: 0.05
+
+    # ----- Filtres sur les scans utilises ------------------------------------
+    # LMS111 : range_min = 0.5 m dans notre config -> on force au moins ca.
+    min_laser_range: 0.5
+    max_laser_range: 20.0
+
+    # ----- Detection de deplacement (pour ne pas surcharger le graphe) -------
+    # On n'ajoute un nouveau noeud dans le graphe de poses que si le robot
+    # a bouge d'au moins ces valeurs depuis le dernier noeud.
+    minimum_travel_distance: 0.3   # 30 cm
+    minimum_travel_heading: 0.3    # ~17 degres
+
+    # ----- Loop closure ------------------------------------------------------
+    # Detection des fermetures de boucle (quand on revient a un endroit deja
+    # cartographie) -> essentiel pour corriger la derive.
+    enable_interactive_mode: true
+    do_loop_closing: true
+    loop_search_maximum_distance: 3.0
+    loop_match_minimum_chain_size: 10
+    loop_match_maximum_variance_coarse: 3.0
+    loop_match_minimum_response_coarse: 0.35
+    loop_match_minimum_response_fine: 0.45
+
+    # ----- Correspondance de scans (matching) --------------------------------
+    correlation_search_space_dimension: 0.5
+    correlation_search_space_resolution: 0.01
+    correlation_search_space_smear_deviation: 0.1
+
+    # ----- Buffer de scans ---------------------------------------------------
+    scan_buffer_size: 10
+    scan_buffer_maximum_scan_distance: 10.0
+
+    # ----- Divers ------------------------------------------------------------
+    debug_logging: false
+    throttle_scans: 1
+    transform_publish_period: 0.05    # publie map->odom a 20 Hz
+    tf_buffer_duration: 30.0
+    stack_size_to_use: 40000000
