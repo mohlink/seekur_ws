@@ -200,7 +200,7 @@
             <frame_id>odom</frame_id>
             <child_frame_id>base_footprint</child_frame_id>  <!-- CHANGEMENT ICI -->
             <publish_odom>true</publish_odom>
-            <publish_odom_tf>true</publish_odom_tf>
+            <publish_odom_tf>false</publish_odom_tf>
             <!-- IMPORTANT : false. C'est robot_state_publisher qui doit
                  produire les TF des roues à partir de /joint_states.
                  Si les deux publient, RViz2 reçoit des TF en double
@@ -233,6 +233,7 @@
         <sensor name="laser_scanner" type="gpu_lidar">
             <pose>0 0 0 0 0 0</pose>
             <topic>scan</topic>
+            <gz_frame_id>laser_frame</gz_frame_id> 
             <update_rate>25</update_rate>   <!-- 10 -> 25 (LMS111 standard) -->
             <ray>
                 <scan>

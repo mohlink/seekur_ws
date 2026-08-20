@@ -28,7 +28,7 @@
 
 # --- Commande de vitesse : ROS2 -> Gazebo ------------------------------------
 # Twist NON stamped, coherent avec le protocole SeekurOS (pas de ros2_control).
-- ros_topic_name: "/cmd_vel"
+- ros_topic_name: "/sim/cmd_vel"
   gz_topic_name: "/cmd_vel"
   ros_type_name: "geometry_msgs/msg/Twist"
   gz_type_name: "gz.msgs.Twist"
@@ -36,18 +36,10 @@
 
 
 # --- Odometrie du robot : Gazebo -> ROS2 -------------------------------------
-- ros_topic_name: "/odom"
+- ros_topic_name: "/sim/odom"
   gz_topic_name: "/odom"
   ros_type_name: "nav_msgs/msg/Odometry"
   gz_type_name: "gz.msgs.Odometry"
-  direction: GZ_TO_ROS
-
-
-# --- Arbre TF publie par Gazebo : Gazebo -> ROS2 -----------------------------
-- ros_topic_name: "/tf"
-  gz_topic_name: "/tf"
-  ros_type_name: "tf2_msgs/msg/TFMessage"
-  gz_type_name: "gz.msgs.Pose_V"
   direction: GZ_TO_ROS
 
 
@@ -73,4 +65,4 @@
   ros_type_name: "sensor_msgs/msg/LaserScan"
   gz_type_name: "gz.msgs.LaserScan"
   direction: GZ_TO_ROS
-  ros_frame_id: "laser_frame"
+# frame_id gere a la source via gz_frame_id dans le xacro. /clock et /joint_states ne bougent pas

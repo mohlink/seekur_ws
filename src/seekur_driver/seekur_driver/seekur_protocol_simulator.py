@@ -49,6 +49,12 @@ class SeekurState(Enum):
     def __le__(self, other):
         return self.value <= other.value
 
+    def __lt__(self, other):
+        return self.value < other.value
+
+    def __gt__(self, other):
+        return self.value > other.value
+    
 def build_response(cmd: int, arg_type: Optional[int] = None, arg_val: Optional[int] = None) -> bytes:
     """Construit une réponse SeekurOS"""
     body = bytearray([cmd & 0xFF])
@@ -106,10 +112,9 @@ class SeekurProtocolSimulator(Node):
         self.theta_units = 0
         self.battery_level = 175  # Comme observé (35V)
         
-        # Interface ROS2 avec Gazebo
-        self.cmd_vel_pub = self.create_publisher(Twist, '/cmd_vel', 10)
-        self.odom_sub = self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
-        self.scan_sub = self.create_subscription(LaserScan, '/scan', self.scan_callback, 10)
+        # Interface ROS2 avec Gazebo — topics PRIVES de simulation (/sim/*)
+        self.cmd_vel_pub = self.create_publisher(Twist, '/sim/cmd_vel', 10)
+        self.odom_sub = self.create_subscription(Odometry, '/sim/odom', self.odom_callback, 10)
         
         # Timer pour publication continue des commandes
         self.cmd_vel_timer = self.create_timer(0.05, self.publish_cmd_vel_continuous)  # 20Hz
@@ -341,28 +346,36 @@ class SeekurProtocolSimulator(Node):
         pass
     
     def sip_sender(self):
-        """Envoie les paquets SIP toutes les 100ms"""
-        while self.running and self.client_socket and self.state >= SeekurState.OPENED:
+        """Envoie les paquets SIP toutes les 100ms. (cf. correctif N2)"""
+        sip_started = False
+        while self.running and self.client_socket:
             try:
-                # Calculer vitesses des roues pour SIP
+                if self.state < SeekurState.OPENED:
+                    time.sleep(0.05)
+                    continue
+
+                if not sip_started:
+                    self.get_logger().info("Flux SIP démarré (100ms)")
+                    sip_started = True
+
                 linear_ms = self.current_vel / 1000.0
                 angular_rads = math.radians(self.current_rvel)
-                
-                # Cinématique différentielle inverse
+
                 v_left = linear_ms - (angular_rads * self.wheel_separation / 2.0)
                 v_right = linear_ms + (angular_rads * self.wheel_separation / 2.0)
-                
+
                 lvel_mms = int(v_left * 1000)
                 rvel_mms = int(v_right * 1000)
-                
-                # Construire et envoyer SIP
+
                 sip = build_sip_packet(self.x_mm, self.y_mm, self.theta_units,
                                      lvel_mms, rvel_mms, self.battery_level)
-                
+
                 self.client_socket.send(sip)
-                time.sleep(0.1)  # 100ms comme le vrai robot
-                
+                time.sleep(0.1)
+
             except Exception as e:
+                # JAMAIS de break muet : c'est ce qui a masqué deux bugs de suite.
+                self.get_logger().error(f"sip_sender arrêté: {e}")
                 break
     
     def destroy_node(self):
