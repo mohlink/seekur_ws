@@ -1,70 +1,68 @@
 #!/usr/bin/env python3
 """
-slam.launch.py - SeekurJR + slam_toolbox en mode online_async
+slam.launch.py - SLAM par-dessus la chaine de simulation SeekurJR
 
-Lance la meme chaine que gazebo_simple.launch.py, mais avec :
-  - le monde warehouse_simple.sdf (piece 10x10 m avec obstacles)
-  - le noeud slam_toolbox par-dessus, qui publie map -> odom et /map
+Refactorisation post-N2 : au lieu de dupliquer la chaine sim, on
+INCLUT sim.launch.py (qui contient deja Gazebo + robot + bridge +
+robot_state_publisher + simulateur + driver + RViz2 avec use_sim_time
+cable partout) et on ajoute simplement le noeud slam_toolbox par
+dessus. Ce meme pattern sera utilise pour nav.launch.py plus tard.
+
+Ce que ce launch fait EN PLUS de sim.launch.py :
+  - lance slam_toolbox en mode online_async
+  - gere le cycle de vie du lifecycle node (CONFIGURE puis ACTIVATE)
+  - charge le monde warehouse_simple.sdf par defaut (surchargable)
 
 Pour cartographier :
-  1. Lancer ce launch
-  2. Dans un autre terminal, lancer le simulateur de protocole
-     puis seekur_interactive1_tcp.py pour conduire le robot
-  3. Dans RViz2, ajouter un affichage 'Map' sur le topic /map
-  4. Une fois satisfait de la carte : sauvegarder via
+  1. Lancer ce launch (Gazebo + toute la chaine + slam_toolbox se lance)
+  2. Piloter le robot :
+     ros2 topic pub -r 5 /cmd_vel geometry_msgs/msg/Twist '{linear: {x: 0.2}}'
+     (ou avec seekur_interactive1_tcp.py sur tcp://localhost:9999,
+     mais dans ce cas ne pas lancer le driver : --driver=false)
+  3. Dans RViz2, ajouter un affichage 'Map' sur le topic /map si absent
+  4. Sauvegarder :
      ros2 run nav2_map_server map_saver_cli -f ~/seekur_ws/maps/warehouse
+
+Arguments : herites de sim.launch.py (world, use_sim_time, rviz, driver)
+    ros2 launch seekur_driver slam.launch.py world:=mine_gallery.sdf
 """
 
 from launch import LaunchDescription
-from launch_ros.actions import Node, LifecycleNode
+from launch_ros.actions import LifecycleNode
 from launch_ros.event_handlers import OnStateTransition
 from launch_ros.events.lifecycle import ChangeState
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, EmitEvent, RegisterEventHandler
-from launch.conditions import IfCondition
+from launch.actions import (
+    DeclareLaunchArgument, IncludeLaunchDescription,
+    EmitEvent, RegisterEventHandler,
+)
 from launch.events import matches_action
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
-from launch_ros.parameter_descriptions import ParameterValue
 from ament_index_python.packages import get_package_share_directory
 from lifecycle_msgs.msg import Transition
 import os
-
-MODEL_NAME = 'seekur_jr'
 
 
 def generate_launch_description():
 
     use_sim_time = LaunchConfiguration('use_sim_time')
-
     pkg_share = FindPackageShare('seekur_driver')
-
-    xacro_file = PathJoinSubstitution([
-        pkg_share, 'urdf', 'seekur_jr_simple.urdf.xacro'
-    ])
-    robot_description = ParameterValue(
-        Command(['xacro ', xacro_file]),
-        value_type=str
-    )
-
-    bridge_config = PathJoinSubstitution([
-        pkg_share, 'config', 'gz_bridge.yaml'
-    ])
 
     # Chemin du YAML slam resolu IMMEDIATEMENT (chemin en dur), pas via
     # PathJoinSubstitution : slam_toolbox ignore silencieusement un
     # params-file fourni comme substitution non resolue dans parameters=[].
+    # C'etait une des lecons de la mise en place N2 initiale.
     slam_config = os.path.join(
         get_package_share_directory('seekur_driver'),
         'config', 'slam_toolbox_params.yaml'
     )
 
-    world_file = PathJoinSubstitution([
-        pkg_share, 'worlds', 'warehouse_simple.sdf'
-    ])
-
-    # Noeud slam_toolbox declare comme LifecycleNode pour pouvoir cibler ses
-    # transitions d'etat depuis le launch (voir plus bas dans la description).
+    # slam_toolbox 2.8.x est un lifecycle node : demarre 'unconfigured'
+    # et ne fait rien tant qu'on ne l'a pas configure puis active. Le
+    # parametre autostart est ignore par cette version. On automatise
+    # les transitions : EmitEvent CONFIGURE au demarrage, puis un
+    # OnStateTransition qui declenche ACTIVATE des que CONFIGURE reussit.
     slam_node = LifecycleNode(
         package='slam_toolbox',
         executable='async_slam_toolbox_node',
@@ -79,79 +77,23 @@ def generate_launch_description():
 
     return LaunchDescription([
 
+        # sim.launch.py declare deja tous les arguments (world, rviz,
+        # driver, use_sim_time). On n'a pas besoin de les redeclarer :
+        # ils sont transmis automatiquement quand on inclut le launch.
         DeclareLaunchArgument('use_sim_time', default_value='true'),
-        DeclareLaunchArgument('rviz', default_value='true'),
 
-        # --- Gazebo Harmonic avec notre monde de test ------------------------
+        # --- Chaine de simulation complete (via sim.launch.py) --------------
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource([
                 PathJoinSubstitution([
-                    FindPackageShare('ros_gz_sim'), 'launch', 'gz_sim.launch.py'
+                    pkg_share, 'launch', 'sim.launch.py'
                 ])
             ]),
-            launch_arguments={'gz_args': [world_file, ' -r']}.items()
+            # Pas besoin de repasser les arguments : ils remontent
+            # naturellement depuis la ligne de commande vers l'include.
         ),
 
-        # --- Robot State Publisher ------------------------------------------
-        Node(
-            package='robot_state_publisher',
-            executable='robot_state_publisher',
-            name='robot_state_publisher',
-            parameters=[{
-                'use_sim_time': use_sim_time,
-                'robot_description': robot_description,
-            }],
-            output='screen'
-        ),
-
-        # --- Spawn du robot dans Gazebo -------------------------------------
-        # Origine (0,0,0.1) : au centre de la piece, hors de tout obstacle.
-        Node(
-            package='ros_gz_sim',
-            executable='create',
-            arguments=[
-                '-topic', 'robot_description',
-                '-name', MODEL_NAME,
-                '-x', '0.0', '-y', '0.0', '-z', '0.1',
-            ],
-            output='screen'
-        ),
-
-        # --- Bridge ROS2 <-> Gazebo (config YAML centralisee) ---------------
-        Node(
-            package='ros_gz_bridge',
-            executable='parameter_bridge',
-            name='gz_bridge',
-            parameters=[{
-                'config_file': bridge_config,
-                'use_sim_time': use_sim_time,
-            }],
-            output='screen'
-        ),
-
-        # --- Alias TF pour le frame_id du LiDAR ------------------------------
-        # Cf. commentaire dans gz_bridge.yaml : ros_frame_id ignore sur Jazzy.
-        Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            name='lidar_frame_alias',
-            arguments=[
-                '--x', '0', '--y', '0', '--z', '0',
-                '--roll', '0', '--pitch', '0', '--yaw', '0',
-                '--frame-id', 'laser_frame',
-                '--child-frame-id', f'{MODEL_NAME}/base_footprint/laser_scanner',
-            ],
-            parameters=[{'use_sim_time': use_sim_time}],
-            output='screen'
-        ),
-
-        # --- SLAM Toolbox (online_async, lifecycle) --------------------------
-        # slam_toolbox 2.8.x est un lifecycle node : il demarre 'unconfigured'
-        # et ne fait RIEN tant qu'on ne l'a pas configure puis active.
-        # Le parametre autostart est ignore par cette version (teste 2026-08).
-        # On automatise donc les transitions ici :
-        #   1. EmitEvent CONFIGURE des le lancement
-        #   2. OnStateTransition 'configuring'->'inactive' => EmitEvent ACTIVATE
+        # --- slam_toolbox par-dessus ----------------------------------------
         slam_node,
 
         EmitEvent(
@@ -175,18 +117,5 @@ def generate_launch_description():
                     ),
                 ],
             )
-        ),
-
-        # --- RViz2 -----------------------------------------------------------
-        Node(
-            package='rviz2',
-            executable='rviz2',
-            name='rviz2',
-            arguments=['-d', PathJoinSubstitution([
-                pkg_share, 'config', 'seekur_viz.rviz'
-            ])],
-            parameters=[{'use_sim_time': use_sim_time}],
-            condition=IfCondition(LaunchConfiguration('rviz')),
-            output='screen'
         ),
     ])
