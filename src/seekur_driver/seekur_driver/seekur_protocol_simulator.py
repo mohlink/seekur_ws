@@ -120,7 +120,7 @@ class SeekurProtocolSimulator(Node):
         self.cmd_vel_timer = self.create_timer(0.05, self.publish_cmd_vel_continuous)  # 20Hz
         
         # Variables pour conversion
-        self.wheel_separation = 0.33  # m
+        self.wheel_separation = 0.563  # m  0.33
         self.last_odom_time = time.time()
         
         # Socket TCP pour émulation port série

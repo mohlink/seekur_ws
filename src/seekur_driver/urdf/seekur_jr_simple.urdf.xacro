@@ -5,18 +5,21 @@
     <xacro:arg name="robot_color" default="Grey"/>
     <xacro:property name="robot_color" value="$(arg robot_color)"/>
 
-    <!-- Propriétés SeekurJR -->
-    <xacro:property name="base_length" value="0.45" />
-    <xacro:property name="base_width" value="0.35" />
-    <xacro:property name="base_height" value="0.15" />
-    <xacro:property name="wheel_radius" value="0.085" />
-    <xacro:property name="wheel_length" value="0.05" />
-    <xacro:property name="wheel_separation" value="0.33" />
+    <!-- =======================================================
+         Proprietes SeekurJR - Datasheet officiel Adept Rev B
+         (SeekurJr-Datasheet-RevB.pdf, 2011, Adept MobileRobots)
+         ======================================================= -->
+    <xacro:property name="base_length" value="1.051" />      <!-- 1051 mm datasheet -->
+    <xacro:property name="base_width" value="0.494" />       <!-- 494 mm chassis hors roues -->
+    <xacro:property name="base_height" value="0.425" />      <!-- 425 mm hauteur chassis -->
+    <xacro:property name="wheel_radius" value="0.203" />     <!-- 16" pneumatique = 406 mm diam -->
+    <xacro:property name="wheel_length" value="0.10" />      <!-- largeur pneu approx 10 cm -->
+    <xacro:property name="wheel_separation" value="0.563" /> <!-- ESTIME : largeur_totale (663) - largeur_pneu (100). A MESURER AU LAB. -->
 
-    <!-- Masses SeekurJR -->
-    <xacro:property name="base_mass" value="25.0" />
-    <xacro:property name="wheel_mass" value="2.0" />
-    <xacro:property name="caster_mass" value="0.5" />
+    <!-- Masses (datasheet : robot complet 77 kg) -->
+    <xacro:property name="base_mass" value="60.0" />         <!-- chassis + electronique -->
+    <xacro:property name="wheel_mass" value="8.0" />         <!-- 16" pneumatique ~8 kg piece -->
+    <xacro:property name="caster_mass" value="0.5" />        <!-- non present sur vrai SeekurJR, garde pour stabilite Gazebo -->
 
     <!-- Couleurs -->
     <material name="blue"><color rgba="0 0 0.8 1" /></material>
@@ -191,8 +194,8 @@
         <plugin filename="libgz-sim-diff-drive-system.so" name="gz::sim::systems::DiffDrive">
             <left_joint>base_left_wheel_joint</left_joint>
             <right_joint>base_right_wheel_joint</right_joint>
-            <wheel_separation>0.33</wheel_separation>
-            <wheel_radius>0.085</wheel_radius>
+            <wheel_separation>0.563</wheel_separation>      <!-- MAJ Rev B -->
+            <wheel_radius>0.203</wheel_radius>              <!-- MAJ Rev B -->
 
             <topic>cmd_vel</topic>
             <odom_topic>odom</odom_topic>

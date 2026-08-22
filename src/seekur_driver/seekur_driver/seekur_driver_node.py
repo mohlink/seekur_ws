@@ -179,7 +179,7 @@ class SeekurDriverNode(Node):
                 ('odom_frame', 'odom'),
                 ('max_linear_vel', 0.5),    # m/s  - prudent pour debut nav2
                 ('max_angular_vel', 0.7),   # rad/s
-                ('wheel_separation', 0.33), # m (SeekurJR)
+                ('wheel_separation', 0.563), # m (SeekurJR)
                 ('publish_tf', True),
                 ('odom_freq', 20.0),        # Hz (SIP arrivent a 10 Hz)
                 ('battery_freq', 1.0),      # Hz
@@ -533,6 +533,7 @@ class SeekurDriverNode(Node):
         odom.pose.pose.position.x = self.robot_x
         odom.pose.pose.position.y = self.robot_y
         odom.pose.pose.position.z = 0.0
+
         quat = yaw_to_quaternion(self.robot_theta)       
         odom.pose.pose.orientation.x = quat[0]
         odom.pose.pose.orientation.y = quat[1]
