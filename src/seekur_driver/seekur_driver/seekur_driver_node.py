@@ -179,7 +179,7 @@ class SeekurDriverNode(Node):
                 ('odom_frame', 'odom'),
                 ('max_linear_vel', 0.5),    # m/s  - prudent pour debut nav2
                 ('max_angular_vel', 0.7),   # rad/s
-                ('wheel_separation', 0.563), # m (SeekurJR)
+                ('wheel_separation', 0.68), # m (SeekurJR)
                 ('publish_tf', True),
                 ('odom_freq', 20.0),        # Hz (SIP arrivent a 10 Hz)
                 ('battery_freq', 1.0),      # Hz

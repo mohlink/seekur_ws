@@ -1,136 +1,288 @@
 # =============================================================================
-# nav2_params.yaml - Parametres nav2 pour SeekurJR (N4 - map_server + AMCL)
+# nav2_params.yaml - Parametres nav2 pour SeekurJR (N5 - navigation complete)
 # =============================================================================
 #
-# Ce fichier est la CONVENTION nav2 : tous les parametres de tous les
-# noeuds nav2 vivent ici, dans une seule config qu'on passe partout.
-# Pour l'instant on ne configure que map_server et amcl (N4). Les autres
-# sections (planner_server, controller_server, bt_navigator, ...) seront
-# ajoutees en N5 pour la navigation complete.
+# Extension de la version N4 : on garde map_server + amcl + le lifecycle_manager
+# de localisation, et on AJOUTE toute la pile de navigation :
+#   - planner_server        : trajectoire globale sur costmap globale
+#   - controller_server     : suivi + evitement local sur costmap locale
+#   - bt_navigator          : orchestration via arbre de comportement
+#   - behavior_server       : recovery (spin, backup, wait)
+#   - lifecycle_manager_nav : active les 4 nouveaux noeuds en batch
 #
-# CONVENTION frames (rappel arbre TF SeekurJR) :
+# CONVENTION (rappel) :
 #   map -> odom -> base_footprint -> base_link -> laser_frame
-#   - map -> odom      : publie par AMCL (ce fichier)
-#   - odom -> base_*   : publie par seekur_driver (SIP -> odom)
-#   - base_footprint -> base_link : publie par robot_state_publisher (URDF)
-#   - base_link -> laser_frame    : publie par robot_state_publisher (URDF)
+#   Robot Rev B : L 1.05, W 0.49, rayon inscrit sqrt(...) ~= 0.58 m
+#   Vitesses driver : 0.5 m/s max lineaire, 0.7 rad/s max angulaire
 #
 # =============================================================================
 
 
 # --- MAP SERVER --------------------------------------------------------------
-# Charge la carte statique produite par slam_toolbox en N3 et la publie
-# sur /map. QoS TRANSIENT_LOCAL par defaut : tout nouveau subscriber
-# recoit la derniere carte publiee, meme s'il arrive plus tard.
 map_server:
   ros__parameters:
     use_sim_time: true
-
-    # Chemin vers le YAML de carte. Absolu pour eviter les surprises
-    # avec le repertoire de travail depuis lequel le launch est lance.
-    # A adapter si tu deplaces le workspace.
     yaml_filename: "/home/user/seekur_ws/maps/mine_gallery.yaml"
-
-    # Type de topic (default: 'occupancy_grid'). Laisse par defaut.
     topic_name: "map"
     frame_id: "map"
 
 
 # --- AMCL --------------------------------------------------------------------
-# Adaptive Monte Carlo Localization : nuage de particules qui converge
-# sur la position reelle du robot dans la carte. Publie map -> odom.
-#
-# Parametres calibres pour SeekurJR / monde galeries de mine :
-#   - robot lent (max 0.5 m/s), on peut se permettre peu de particules
-#   - long couloir droit -> augmenter update thresholds pour eviter le
-#     'gel des particules' dans les zones ambigues (test en N4d)
-#   - LiDAR LMS111 : 541 rays sur 270 deg -> laser_likelihood suffit
+# Identique a N4 (valide kidnapping + recollage cul-de-sac)
 amcl:
   ros__parameters:
     use_sim_time: true
-
-    # --- Frames et topics ---
     base_frame_id: "base_footprint"
     odom_frame_id: "odom"
     global_frame_id: "map"
     scan_topic: "scan"
-    transform_tolerance: 1.0  # sec, marge pour la fusion des TF
-
-    # --- Pose initiale (spawn Gazebo en 0,0,0) ---
-    # AMCL initialise le nuage de particules ici au demarrage.
-    # Le bouton '2D Pose Estimate' de RViz permettra de re-initialiser
-    # a la souris pendant la balade (utile pour tester le kidnapping).
+    transform_tolerance: 1.0
     set_initial_pose: true
     initial_pose:
       x: 0.0
       y: 0.0
       z: 0.0
       yaw: 0.0
-
-    # --- Taille du nuage de particules ---
-    # Petit = leger CPU mais moins robuste
-    # Grand = meilleure convergence mais plus lourd
-    # 500-2000 raisonnable pour un monde de 15x30 m
     min_particles: 500
     max_particles: 2000
-
-    # --- Modele de mouvement (odometrie -> incertitude) ---
-    # 'diff-corrected' : modele differential drive standard, adapte
-    # au SeekurJR (le firmware fait la cinematique en interne, on lui
-    # fait confiance sur les commandes envoyees).
     robot_model_type: "nav2_amcl::DifferentialMotionModel"
-    alpha1: 0.2   # bruit rotation depuis rotation
-    alpha2: 0.2   # bruit rotation depuis translation
-    alpha3: 0.2   # bruit translation depuis translation
-    alpha4: 0.2   # bruit translation depuis rotation
-    alpha5: 0.2   # bruit translation depuis translation (omnidir)
-
-    # --- Modele de capteur (LiDAR -> vraisemblance) ---
-    # likelihood_field : rapide, adapte pour LiDAR 2D 'propre'
-    # beam : plus precis mais plus lourd, utile si beaucoup de faux
-    # positifs (personnes, objets mobiles) - pas notre cas en sim
+    alpha1: 0.2
+    alpha2: 0.2
+    alpha3: 0.2
+    alpha4: 0.2
+    alpha5: 0.2
     laser_model_type: "likelihood_field"
-    max_beams: 60           # sous-echantillonnage : 60 sur 541 suffit
-    laser_min_range: -1.0   # -1 = utilise la valeur du /scan (0.5 m)
-    laser_max_range: -1.0   # -1 = utilise la valeur du /scan (20 m)
-    laser_likelihood_max_dist: 2.0  # sigma pour la vraisemblance
+    max_beams: 60
+    laser_min_range: -1.0
+    laser_max_range: -1.0
+    laser_likelihood_max_dist: 2.0
     z_hit: 0.5
     z_short: 0.05
     z_max: 0.05
     z_rand: 0.5
     sigma_hit: 0.2
-
-    # --- Seuils de mise a jour ---
-    # AMCL ne re-echantillonne QUE si le robot a bouge d'au moins ces
-    # valeurs depuis le dernier resample. Trop bas = CPU pour rien.
-    # Trop haut = derive de localisation dans les longs couloirs droits.
-    update_min_a: 0.2       # rad - re-echantillonne apres 0.2 rad
-    update_min_d: 0.25      # m   - re-echantillonne apres 25 cm
-    resample_interval: 1    # nb de mesures entre resampling
-
-    # --- Recuperation en cas de perte (KLD sampling) ---
-    # Si AMCL est 'perdu' (kidnapping), il ajoute des particules
-    # aleatoires pour rebalayer l'espace. Balance a tuner.
+    update_min_a: 0.2
+    update_min_d: 0.25
+    resample_interval: 1
     recovery_alpha_slow: 0.001
     recovery_alpha_fast: 0.1
     pf_err: 0.05
     pf_z: 0.99
-
-    # --- Divers ---
-    tf_broadcast: true      # publie map -> odom (fonction principale)
-    save_pose_rate: 0.5     # sauve la derniere pose pour repli au restart
+    tf_broadcast: true
+    save_pose_rate: 0.5
 
 
-# --- LIFECYCLE MANAGER ------------------------------------------------------
-# Meme pattern que pour slam_toolbox : les noeuds nav2 sont des
-# lifecycle nodes qui ne font rien tant qu'on ne les active pas.
-# Le lifecycle_manager les configure + active en batch, dans l'ordre
-# donne par 'node_names'. autostart:true declenche tout au demarrage.
+# --- PLANNER SERVER (trajectoire globale) ------------------------------------
+planner_server:
+  ros__parameters:
+    use_sim_time: true
+    expected_planner_frequency: 1.0
+    planner_plugins: ["GridBased"]
+    GridBased:
+      plugin: "nav2_navfn_planner::NavfnPlanner"
+      tolerance: 0.5
+      use_astar: true
+      allow_unknown: false
+
+
+# --- CONTROLLER SERVER (suivi + evitement local) -----------------------------
+controller_server:
+  ros__parameters:
+    use_sim_time: true
+    controller_frequency: 20.0
+
+    # PIEGE JAZZY : nav2 controller publie TwistStamped par defaut.
+    # Notre driver ecoute Twist. Sans ce false, robot immobile.
+    enable_stamped_cmd_vel: false
+
+    min_x_velocity_threshold: 0.001
+    min_y_velocity_threshold: 0.5
+    min_theta_velocity_threshold: 0.001
+    failure_tolerance: 0.3
+
+    progress_checker_plugins: ["progress_checker"]
+    progress_checker:
+      plugin: "nav2_controller::SimpleProgressChecker"
+      required_movement_radius: 0.5
+      movement_time_allowance: 10.0
+
+    goal_checker_plugins: ["general_goal_checker"]
+    general_goal_checker:
+      plugin: "nav2_controller::SimpleGoalChecker"
+      xy_goal_tolerance: 0.25
+      yaw_goal_tolerance: 0.25
+      stateful: true
+
+    controller_plugins: ["FollowPath"]
+    FollowPath:
+      plugin: "dwb_core::DWBLocalPlanner"
+      min_vel_x: 0.0
+      max_vel_x: 0.5
+      max_vel_theta: 0.7
+      min_speed_xy: 0.0
+      max_speed_xy: 0.5
+      min_speed_theta: 0.0
+      acc_lim_x: 0.5
+      acc_lim_theta: 1.0
+      decel_lim_x: -0.5
+      decel_lim_theta: -1.0
+      vx_samples: 20
+      vy_samples: 0
+      vtheta_samples: 20
+      sim_time: 1.7
+      linear_granularity: 0.05
+      angular_granularity: 0.025
+      transform_tolerance: 0.2
+      critics: ["RotateToGoal", "Oscillation", "BaseObstacle",
+                "GoalAlign", "PathAlign", "PathDist", "GoalDist"]
+      BaseObstacle.scale: 0.5
+      PathAlign.scale: 32.0
+      PathAlign.forward_point_distance: 0.325
+      GoalAlign.scale: 24.0
+      GoalAlign.forward_point_distance: 0.325
+      PathDist.scale: 32.0
+      GoalDist.scale: 24.0
+      RotateToGoal.scale: 32.0
+      RotateToGoal.slowing_factor: 5.0
+      RotateToGoal.lookahead_time: -1.0
+
+
+# --- COSTMAP GLOBALE (statique) ----------------------------------------------
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      use_sim_time: true
+      update_frequency: 1.0
+      publish_frequency: 1.0
+      global_frame: map
+      robot_base_frame: base_footprint
+      robot_radius: 0.62
+      resolution: 0.05
+      track_unknown_space: true
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: true
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: true
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: true
+          marking: true
+          data_type: "LaserScan"
+          raytrace_max_range: 20.0
+          raytrace_min_range: 0.0
+          obstacle_max_range: 18.0
+          obstacle_min_range: 0.0
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 2.0
+        inflation_radius: 0.85
+
+
+# --- COSTMAP LOCALE (dynamique, fenetre 6x6 autour du robot) -----------------
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      use_sim_time: true
+      update_frequency: 5.0
+      publish_frequency: 5.0
+      global_frame: odom
+      robot_base_frame: base_footprint
+      rolling_window: true
+      width: 6
+      height: 6
+      resolution: 0.05
+      robot_radius: 0.62
+      plugins: ["static_layer", "voxel_layer", "inflation_layer"]
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: true      
+      voxel_layer:
+        plugin: "nav2_costmap_2d::VoxelLayer"
+        enabled: true
+        publish_voxel_map: true
+        origin_z: 0.0
+        z_resolution: 0.05
+        z_voxels: 16
+        max_obstacle_height: 2.0
+        mark_threshold: 0
+        observation_sources: scan
+        scan:
+          topic: /scan
+          max_obstacle_height: 2.0
+          clearing: true
+          marking: true
+          data_type: "LaserScan"
+          raytrace_max_range: 20.0
+          raytrace_min_range: 0.0
+          obstacle_max_range: 18.0
+          obstacle_min_range: 0.0
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.85
+
+
+# --- BEHAVIOR TREE NAVIGATOR -------------------------------------------------
+bt_navigator:
+  ros__parameters:
+    use_sim_time: true
+    global_frame: map
+    robot_base_frame: base_footprint
+    odom_topic: /odom
+    bt_loop_duration: 10
+    default_server_timeout: 20
+    wait_for_service_timeout: 1000
+
+
+# --- BEHAVIOR SERVER (recovery : spin, back_up, wait) ------------------------
+behavior_server:
+  ros__parameters:
+    use_sim_time: true
+    local_costmap_topic: local_costmap/costmap_raw
+    local_footprint_topic: local_costmap/published_footprint
+    global_costmap_topic: global_costmap/costmap_raw
+    global_footprint_topic: global_costmap/published_footprint
+    cycle_frequency: 10.0
+    behavior_plugins: ["spin", "backup", "wait"]
+    spin:
+      plugin: "nav2_behaviors::Spin"
+    backup:
+      plugin: "nav2_behaviors::BackUp"
+    wait:
+      plugin: "nav2_behaviors::Wait"
+    global_frame: odom
+    robot_base_frame: base_footprint
+    transform_tolerance: 0.1
+    simulate_ahead_time: 2.0
+    max_rotational_vel: 0.7
+    min_rotational_vel: 0.1
+    rotational_acc_lim: 1.0
+
+
+# --- LIFECYCLE MANAGER : LOCALISATION ----------------------------------------
 lifecycle_manager_localization:
   ros__parameters:
     use_sim_time: true
     autostart: true
-    bond_timeout: 4.0    # sec, marge de securite pour les grands mondes
+    bond_timeout: 4.0
     node_names:
-      - map_server       # DOIT etre active en premier (AMCL en depend)
+      - map_server
       - amcl
+
+
+# --- LIFECYCLE MANAGER : NAVIGATION ------------------------------------------
+lifecycle_manager_navigation:
+  ros__parameters:
+    use_sim_time: true
+    autostart: true
+    bond_timeout: 4.0
+    node_names:
+      - controller_server
+      - planner_server
+      - behavior_server
+      - bt_navigator
