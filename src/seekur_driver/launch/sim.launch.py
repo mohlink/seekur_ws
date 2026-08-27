@@ -59,7 +59,7 @@ def generate_launch_description():
     world_arg = LaunchConfiguration('world')
     rviz_arg = LaunchConfiguration('rviz')
     driver_arg = LaunchConfiguration('driver')
-
+    publish_tf_arg = LaunchConfiguration('publish_tf')
     pkg_share = FindPackageShare('seekur_driver')
 
     xacro_file = PathJoinSubstitution([
@@ -101,7 +101,13 @@ def generate_launch_description():
             default_value='true',
             description='Lancer le driver seekur (le simulateur est toujours lance)',
         ),
-
+        DeclareLaunchArgument(
+            'publish_tf',
+            default_value='true',
+            description='Le driver publie-t-il odom->base_footprint. '
+                        'true en solo, false quand l EKF prend le relais '
+                        '(sim_ekf.launch.py).',
+        ),
         # --- Gazebo Harmonic avec le monde selectionne ----------------------
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource([
@@ -180,6 +186,7 @@ def generate_launch_description():
                     parameters=[{
                         'use_sim_time': use_sim_time,
                         'serial_port': 'tcp://localhost:9999',
+                        'publish_tf': publish_tf_arg,
                     }],
                     condition=IfCondition(driver_arg),
                     output='screen'

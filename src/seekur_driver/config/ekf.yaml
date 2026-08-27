@@ -1,0 +1,119 @@
+### ============================================================================
+### ekf.yaml - Configuration robot_localization (EKF) pour SeekurJR
+### ============================================================================
+###
+### Fusionne l'odometrie roues (/odom, du driver) avec l'IMU (/imu/data)
+### pour produire une localisation robuste au patinage.
+###
+### PRINCIPE CLE pour skid-steer en milieu confine :
+###   - la VITESSE LINEAIRE vient des roues (fiable en translation)
+###   - la VITESSE ANGULAIRE vient de l'IMU (gyro), PAS des roues
+###     -> quand le robot patine (roues qui tournent, robot bloque),
+###        le gyro dit "je ne tourne pas" et l'EKF ne cree pas de
+###        fausse rotation. C'est ce qui a manque lors de l'incident
+###        du coin de mur en N5.
+###
+### SORTIE :
+###   - /odometry/filtered (nav_msgs/Odometry)
+###   - TF odom -> base_footprint (l'EKF en devient PROPRIETAIRE UNIQUE ;
+###     le driver doit tourner avec publish_tf:=false)
+###
+### CONVENTION frames (rappel) :
+###   map -> odom -> base_footprint -> base_link -> capteurs
+###   L'EKF opere entre odom et base_footprint (odometrie continue).
+###   AMCL/SLAM ajoutent map -> odom par-dessus (corrections absolues).
+### ============================================================================
+
+ekf_filter_node:
+  ros__parameters:
+    use_sim_time: true
+
+    # Frequence de sortie de l'estimation fusionnee
+    frequency: 30.0
+
+    # Constante de temps pour considerer un capteur "silencieux"
+    sensor_timeout: 0.1
+
+    # --- MODE 2D : ESSENTIEL pour un robot terrestre -------------------------
+    # Force Z, roll, pitch, et leurs derivees a zero. Sans ca, le bruit
+    # d'accelerometre ferait "flotter" ou "tanguer" le robot dans l'estime.
+    # Le SeekurJR roule a plat -> 2D strict.
+    two_d_mode: true
+
+    # Frames (convention SeekurJR)
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_footprint
+    world_frame: odom          # l'EKF local opere dans odom (pas map)
+
+    # Publier la transform (PROPRIETE EXCLUSIVE - driver publish_tf:=false)
+    publish_tf: true
+
+    # Delai de tolerance TF
+    transform_time_offset: 0.0
+    transform_timeout: 0.0
+
+    # --- SOURCE 1 : ODOMETRIE ROUES (/odom) ----------------------------------
+    # Matrice de config 15 dimensions, ordre :
+    #   [x,     y,     z,
+    #    roll,  pitch, yaw,
+    #    vx,    vy,    vz,
+    #    vroll, vpitch, vyaw,
+    #    ax,    ay,    az]
+    #
+    # De l'odometrie roues, on prend UNIQUEMENT la vitesse lineaire vx.
+    # On NE prend PAS vyaw (vitesse angulaire) : elle vient de l'IMU, plus
+    # fiable au patinage. On ne prend pas les positions absolues (x,y,yaw)
+    # car ce sont des integrations bruitees -> on laisse l'EKF integrer
+    # lui-meme a partir des vitesses.
+    odom0: odom
+    odom0_config: [false, false, false,
+                   false, false, false,
+                   true,  false, false,
+                   false, false, false,
+                   false, false, false]
+    odom0_queue_size: 10
+    odom0_differential: false
+    odom0_relative: false
+
+    # --- SOURCE 2 : IMU (/imu/data) ------------------------------------------
+    # De l'IMU on prend :
+    #   - vyaw (vitesse angulaire Z, gyro) : LA source de rotation
+    #   - ax (acceleration lineaire X) : aide a estimer les changements
+    #     de vitesse fins entre deux mesures odom
+    # On NE prend PAS l'orientation absolue (yaw) de l'IMU : sans
+    # magnetometre fiable en milieu confine, le yaw absolu derive. On se
+    # contente de la vitesse angulaire, integree par l'EKF.
+    imu0: imu/data
+    imu0_config: [false, false, false,
+                  false, false, false,
+                  false, false, false,
+                  false, false, true,
+                  true,  false, false]
+    imu0_queue_size: 10
+    imu0_differential: false
+    imu0_relative: false
+
+    # L'IMU sim ne fournit pas d'orientation absolue fiable -> on desactive
+    # la fusion d'orientation absolue et on retire la gravite de l'accel.
+    imu0_remove_gravitational_acceleration: true
+
+    # --- Covariance de process (reglage fin, valeurs par defaut adaptees) ----
+    # Laisse par defaut pour commencer. A ajuster si l'estime est trop
+    # nerveux (baisser) ou trop lent a reagir (monter).
+
+    process_noise_covariance: [0.05, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                               0.0,  0.05, 0.0,  0.0,  0.0,  0.0,  0.0,   0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                               0.0,  0.0,  0.06, 0.0,  0.0,  0.0,  0.0,   0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                               0.0,  0.0,  0.0,  0.03, 0.0,  0.0,  0.0,   0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                               0.0,  0.0,  0.0,  0.0,  0.03, 0.0,  0.0,   0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                               0.0,  0.0,  0.0,  0.0,  0.0,  0.06, 0.0,   0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                               0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.025, 0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                               0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.025, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                               0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,   0.04, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,
+                               0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,   0.0,  0.01, 0.0,  0.0,  0.0,  0.0,  0.0,
+                               0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,   0.0,  0.0,  0.01, 0.0,  0.0,  0.0,  0.0,
+                               0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,   0.0,  0.0,  0.0,  0.02, 0.0,  0.0,  0.0,
+                               0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,   0.0,  0.0,  0.0,  0.0,  0.01, 0.0,  0.0,
+                               0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.01, 0.0,
+                               0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.015]

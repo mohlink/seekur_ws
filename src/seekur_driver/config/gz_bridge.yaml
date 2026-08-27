@@ -66,3 +66,11 @@
   gz_type_name: "gz.msgs.LaserScan"
   direction: GZ_TO_ROS
 # frame_id gere a la source via gz_frame_id dans le xacro. /clock et /joint_states ne bougent pas
+
+# --- IMU : capteur inertiel du robot (public, existe aussi sur vrai robot) ---
+- ros_topic_name: "/imu/data"
+  gz_topic_name: "/imu/data"
+  ros_type_name: "sensor_msgs/msg/Imu"
+  gz_type_name: "gz.msgs.IMU"
+  direction: GZ_TO_ROS
+  

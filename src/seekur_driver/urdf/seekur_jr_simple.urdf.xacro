@@ -157,6 +157,21 @@
                                o_xyz="0 0 0" o_rpy="0 0 0" />
     </link>
 
+    <!-- IMU Link : centre du robot (bonne pratique fusion : proche du
+         centre de rotation, minimise les accelerations parasites en rotation).
+         Petit box symbolique, inertie negligeable mais non nulle (exigence Gazebo). -->
+    <link name="imu_link">
+        <visual>
+            <geometry>
+                <box size="0.03 0.03 0.02" />
+            </geometry>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <material name="red" />
+        </visual>
+        <xacro:box_inertia m="0.05" x="0.03" y="0.03" z="0.02"
+                          o_xyz="0 0 0" o_rpy="0 0 0" />
+    </link>
+
     <!-- Joints -->
     <joint name="base_joint" type="fixed">
         <parent link="base_footprint" />
@@ -176,6 +191,16 @@
         <child link="left_wheel_link" />
         <origin xyz="${-base_length / 4.0} ${(base_width + wheel_length) / 2.0} 0" rpy="0 0 0" />
         <axis xyz="0 1 0" />
+    </joint>
+
+    <!-- IMU monte au CENTRE geometrique du chassis, a mi-hauteur.
+         Centre de rotation du robot -> minimise les artefacts d'acceleration
+         centripete quand le robot tourne. base_link est au sol via base_joint,
+         donc z = base_height/2 place l'IMU a mi-hauteur du chassis. -->
+    <joint name="imu_joint" type="fixed">
+        <parent link="base_link" />
+        <child link="imu_link" />
+        <origin xyz="0 0 ${base_height / 2.0}" rpy="0 0 0" />
     </joint>
 
     <joint name="base_caster_wheel_joint" type="fixed">
@@ -235,6 +260,14 @@
         </plugin>
     </gazebo>
 
+    <!-- Systeme IMU : indispensable pour que le capteur type "imu" produise
+         des donnees. Distinct de gz-sim-sensors-system (qui gere lidar/camera).
+         Sans ce systeme, le <sensor type="imu"> reste muet. -->
+    <gazebo>
+        <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu">
+        </plugin>
+    </gazebo>
+
     <!-- Plugin LiDAR -->
     <gazebo reference="laser_frame">
         <sensor name="laser_scanner" type="gpu_lidar">
@@ -262,6 +295,34 @@
                     <stddev>0.01</stddev> <!-- 0.01 -> 0.012 (spec réelle) -->  
                 </noise>
             </ray>
+        </sensor>
+    </gazebo>
+
+    <!-- Capteur IMU : gyro 3 axes + accelerometre 3 axes.
+         Bruit calibre type MPU9250 (valeurs generiques realistes).
+         NOTE : l'IMU interne du vrai SeekurJR (paquets 0x9A) n'a jamais
+         ete confirme fonctionnel (dump reel ne montrait que des SIP 0x32).
+         Plan B au lab : IMU externe MPU9250 (package imu_serial_reader
+         du NaviBot). L'EKF consomme /imu/data quelle que soit la source. -->
+    <gazebo reference="imu_link">
+        <sensor name="imu_sensor" type="imu">
+            <pose>0 0 0 0 0 0</pose>
+            <topic>imu/data</topic>
+            <gz_frame_id>imu_link</gz_frame_id>
+            <update_rate>100</update_rate>
+            <always_on>1</always_on>
+            <imu>
+                <angular_velocity>
+                    <x><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev></noise></x>
+                    <y><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev></noise></y>
+                    <z><noise type="gaussian"><mean>0.0</mean><stddev>2e-4</stddev></noise></z>
+                </angular_velocity>
+                <linear_acceleration>
+                    <x><noise type="gaussian"><mean>0.0</mean><stddev>1.7e-2</stddev></noise></x>
+                    <y><noise type="gaussian"><mean>0.0</mean><stddev>1.7e-2</stddev></noise></y>
+                    <z><noise type="gaussian"><mean>0.0</mean><stddev>1.7e-2</stddev></noise></z>
+                </linear_acceleration>
+            </imu>
         </sensor>
     </gazebo>
 
