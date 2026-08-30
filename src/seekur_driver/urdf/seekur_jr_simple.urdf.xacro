@@ -172,6 +172,38 @@
                           o_xyz="0 0 0" o_rpy="0 0 0" />
     </link>
 
+    <!-- ================================================================
+         Camera RealSense D455 : montee sur mat au-dessus du chassis.
+         Convention frames RealSense/ROS :
+           - camera_link          : convention robot (X vers l'avant)
+           - camera_optical_frame : convention optique (Z vers la scene,
+                                    X droite, Y bas) - c'est ce frame_id
+                                    que RTAB-Map, YOLO ROS, RViz attendent
+                                    dans le header des images.
+         Le sensor Gazebo est declare sur camera_link (regarde vers +X du
+         link, donc vers l'avant du robot). Le gz_frame_id force le frame
+         optique dans les messages ROS -> memes conventions que le vrai
+         driver realsense2_camera.
+         ================================================================ -->
+    <link name="camera_link">
+        <visual>
+            <!-- D455 : 124 x 26 x 29 mm approximatif (bandeau caviar) -->
+            <geometry>
+                <box size="0.026 0.124 0.029" />
+            </geometry>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <material name="black" />
+        </visual>
+        <xacro:box_inertia m="0.1" x="0.026" y="0.124" z="0.029"
+                          o_xyz="0 0 0" o_rpy="0 0 0" />
+    </link>
+
+    <!-- Frame optique : rotation ROS -> optique. Convention standard :
+         RPY = (-pi/2, 0, -pi/2) fait que Z_optique aligne avec X_link,
+         X_optique aligne avec -Y_link, Y_optique aligne avec -Z_link.
+         C'est LA convention utilisee par tous les drivers de camera ROS. -->
+    <link name="camera_optical_frame" />
+
     <!-- Joints -->
     <joint name="base_joint" type="fixed">
         <parent link="base_footprint" />
@@ -217,6 +249,25 @@
             z=0.10 relatif a base_link (=0.30 m du sol). A affiner par
             mesure physique precise au lab. -->
         <origin xyz="0.55 0 0.10" rpy="0 0 0" />
+    </joint>
+
+    <!-- Camera sur mat : legerement devant le centre du chassis, ~60 cm
+         au-dessus de base_link (~80 cm du sol total). Position ESTIMEE,
+         a mesurer au lab. Le mat lui-meme n'est pas modelise visuellement
+         (detail cosmetique) - on modelise juste la position de la camera
+         qui compte pour la simulation. -->
+    <joint name="camera_joint" type="fixed">
+        <parent link="base_link" />
+        <child link="camera_link" />
+        <origin xyz="0.3 0 0.6" rpy="0 0 0" />
+    </joint>
+
+    <!-- Joint optique : rotation qui aligne le repere optique standard
+         (Z vers la scene) avec le repere robot (X vers la scene). -->
+    <joint name="camera_optical_joint" type="fixed">
+        <parent link="camera_link" />
+        <child link="camera_optical_frame" />
+        <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}" />
     </joint>
 
     <gazebo>
@@ -326,6 +377,71 @@
         </sensor>
     </gazebo>
 
+    <!-- Capteur RGBD Intel RealSense D455 (simule).
+         Un seul capteur rgbd_camera Gazebo Harmonic produit :
+           - image RGB     (color)
+           - image depth   (aligned sur RGB)
+           - point cloud   (depth reprojete + couleur)
+           - camera_info
+         
+         Spec D455 reproduites :
+           - FOV RGB   90 deg horizontal (Intel : 90x65)
+           - FOV depth 87 deg horizontal (Intel : 87x58) - approx via un seul
+             FOV rgbd (compromis, Gazebo n'expose qu'un HFOV commun)
+           - Resolution 848x480 @ 30 Hz (native RealSense, adapte YOLO/RTAB)
+             REQUIERT CycloneDDS - voir commentaire sur update_rate
+           - Portee depth clip 0.6 - 6.0 m (spec D455)
+         
+         gz_frame_id=camera_optical_frame -> les messages sortent avec le
+         frame optique dans le header (RTAB-Map/YOLO/RViz OK). Le sensor
+         est physiquement attache a camera_link (X pointe vers la scene),
+         mais l'annotation ROS pointe vers camera_optical_frame. -->
+    <gazebo reference="camera_link">
+        <sensor name="camera_d455" type="rgbd_camera">
+            <pose>0 0 0 0 0 0</pose>
+            <topic>camera</topic>
+            <gz_frame_id>camera_optical_frame</gz_frame_id>
+            <!-- PREREQUIS CRITIQUE : CycloneDDS (RMW_IMPLEMENTATION=
+                 rmw_cyclonedds_cpp). Avec FastDDS (defaut Jazzy), les
+                 topics image/depth/pointcloud s'effondrent a 6-13 Hz avec
+                 des blocages de ~1 s, quelle que soit la resolution.
+                 
+                 Diagnostic 2026-08, causes ECARTEES une par une :
+                   - GPU        : RTX 4060 a 32% d'utilisation, large marge
+                   - Gazebo     : produisait bien 14.4 Hz (mesure gz topic)
+                   - RViz       : aucun effet une fois retire
+                   - Resolution : reduire de 3x a EMPIRE le debit
+                   - Buffers UDP noyau (rmem/wmem max) : aucun effet
+                 Cause reelle : fragmentation DDS des gros messages sur
+                 loopback. Une image 848x480 RGB depasse largement le seuil
+                 de fragmentation ; FastDDS echoue a reconstituer, Cyclone
+                 y arrive sans peine.
+                 
+                 Apres bascule CycloneDDS : 14.4 Hz recus pour 14.4 Hz
+                 produits, ecart-type 0.006 s. Zero perte. -->
+            <update_rate>30</update_rate>
+            <always_on>1</always_on>
+            <camera>
+                <horizontal_fov>1.5708</horizontal_fov> <!-- 90 deg = pi/2 -->
+                <!-- 848x480 : resolution native RealSense D455. -->
+                <image>
+                    <width>848</width>
+                    <height>480</height>
+                    <format>R8G8B8</format>
+                </image>
+                <clip>
+                    <near>0.6</near>
+                    <far>6.0</far>
+                </clip>
+                <noise>
+                    <type>gaussian</type>
+                    <mean>0.0</mean>
+                    <stddev>0.007</stddev>
+                </noise>
+            </camera>
+        </sensor>
+    </gazebo>
+
     <!-- Propriétés Gazebo -->
     <gazebo reference="base_link">
        <material>Gazebo/Grey</material>
@@ -347,6 +463,10 @@
 
     <gazebo reference="laser_frame">
         <material>Gazebo/Blue</material>
+    </gazebo>
+
+    <gazebo reference="camera_link">
+        <material>Gazebo/Black</material>
     </gazebo>
     
 </robot>

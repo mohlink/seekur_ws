@@ -73,4 +73,61 @@
   ros_type_name: "sensor_msgs/msg/Imu"
   gz_type_name: "gz.msgs.IMU"
   direction: GZ_TO_ROS
-  
+
+
+# =============================================================================
+# --- CAMERA RealSense D455 : Gazebo -> ROS2 ---------------------------------
+# =============================================================================
+#
+# Un seul capteur rgbd_camera cote Gazebo produit 4 topics (color, depth,
+# points, camera_info) sous le prefixe /camera/. On les renomme cote ROS
+# pour matcher les topics natifs du driver realsense2_camera - ainsi le
+# passage sim -> real ne demandera aucun changement des configs YOLO/
+# RTAB-Map en aval (meme philosophie que /odom public en N2).
+#
+# frame_id des messages : force a "camera_optical_frame" via gz_frame_id
+# dans le xacro. La convention optique (Z vers la scene) est celle que
+# tous les drivers ROS de camera utilisent.
+#
+# TOPICS SIM (Gazebo)              -> TOPICS ROS (realsense2_camera style)
+#   /camera/image                  -> /camera/color/image_raw
+#   /camera/depth_image            -> /camera/depth/image_rect_raw
+#   /camera/points                 -> /camera/depth/color/points
+#   /camera/camera_info            -> /camera/color/camera_info
+#
+# NOTE : Gazebo publie UN SEUL camera_info commun RGB+depth. Le vrai driver
+# publie deux camera_info separes (color et depth). Simplification acceptable
+# en sim ; si un consommateur exige /camera/depth/camera_info specifiquement,
+# ajouter un second bridge sur le meme topic Gazebo avec renommage different.
+# =============================================================================
+
+# --- RGB image ---------------------------------------------------------------
+- ros_topic_name: "/camera/color/image_raw"
+  gz_topic_name: "/camera/image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+# --- Depth image (aligne sur RGB par le capteur rgbd_camera Gazebo) ----------
+- ros_topic_name: "/camera/depth/image_rect_raw"
+  gz_topic_name: "/camera/depth_image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+# --- Point cloud (depth reprojete + couleur par point) -----------------------
+- ros_topic_name: "/camera/depth/color/points"
+  gz_topic_name: "/camera/points"
+  ros_type_name: "sensor_msgs/msg/PointCloud2"
+  gz_type_name: "gz.msgs.PointCloudPacked"
+  direction: GZ_TO_ROS
+
+# --- Camera info (intrinseques : fx, fy, cx, cy, distortion) -----------------
+# Gazebo publie un camera_info commun ; on l'expose comme celui de la RGB
+# (usage principal en YOLO). Pour RTAB-Map qui peut vouloir depth/camera_info,
+# ajouter un second bridge sur /camera/camera_info avec renommage different.
+- ros_topic_name: "/camera/color/camera_info"
+  gz_topic_name: "/camera/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
