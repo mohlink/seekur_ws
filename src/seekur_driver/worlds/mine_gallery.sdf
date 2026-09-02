@@ -429,5 +429,12 @@
       </link>
     </model>
 
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Standing person</uri>
+      <name>person_1</name>
+      <pose>2.602 0 0 0 0 -1.556</pose>
+      <static>true</static>
+    </include>
+
   </world>
 </sdf>
