@@ -37,3 +37,26 @@ map ──[slam_toolbox @ 20 Hz]──> odom
                                                             
                                                             
 utilisation de CycloneDDS 
+
+=== ENVIRONNEMENT REQUIS (a mettre dans ~/.bashrc) ===
+
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+alias ros2nv='__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia ros2'
+
+Paquet : ros-jazzy-rmw-cyclonedds-cpp
+Sans CycloneDDS, les topics camera s'effondrent a 6-13 Hz.
+
+=== SEQUENCE DE LANCEMENT ===
+
+conda deactivate                          # obligatoire, conda casse ROS2
+source /opt/ros/jazzy/setup.bash
+source ~/yolo_ws/install/setup.bash       # si perception
+source ~/seekur_ws/install/setup.bash
+ros2nv launch seekur_driver sim_yolo.launch.py
+
+=== INSTALLATION yolo_ws (non versionne, code tiers) ===
+
+mkdir -p ~/yolo_ws/src && cd ~/yolo_ws/src
+git clone https://github.com/mgonzs13/yolo_ros.git
+cd yolo_ros && uv sync
+cd ~/yolo_ws && colcon build              # SANS rosdep install
