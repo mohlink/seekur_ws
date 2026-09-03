@@ -1,0 +1,5 @@
+repositories:
+  yolo_ros:
+    type: git
+    url: https://github.com/mgonzs13/yolo_ros.git
+    version: cb9a73f4578f72f9ce439c9835cad77b53f4f2b7
