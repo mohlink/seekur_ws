@@ -1,0 +1,63 @@
+# rtabmap_params.yaml - Parametres RTAB-Map pour SLAM 3D (P4)
+#
+# Consomme :
+#   - Camera D455 (color + depth + camera_info) simulee dans Gazebo
+#   - LiDAR 2D (/scan)
+#   - Odometrie EKF fusionnee (/odometry/filtered) publiee par sim_ekf
+#
+# Produit :
+#   - Carte 3D dense (nuage de points + graph de poses)
+#   - Occupancy grid 2D projetee depuis le LiDAR (/map, compatible nav2)
+#   - TF map->odom (correction de la derive odometrique)
+#
+# Choix cle : odometrie EKF externe (option A1), pas de VO/ICP interne.
+# RTAB-Map fait uniquement le mapping + fermeture de boucle, l'EKF reste
+# la source unique de verite pour la position (coherence avec P1).
+
+rtabmap:
+  ros__parameters:
+
+    # --- Frames -------------------------------------------------------------
+    frame_id: base_link
+    odom_frame_id: odom
+    map_frame_id: map
+
+    # --- Souscriptions ------------------------------------------------------
+    # RGB + depth + LiDAR + odometrie externe.
+    # subscribe_odom_info=false car l'odometrie vient de l'EKF (pas de VO).
+    subscribe_depth: true
+    subscribe_rgb: true
+    subscribe_scan: true
+    subscribe_odom_info: false
+
+    # --- Synchronisation ----------------------------------------------------
+    # approx_sync obligatoire : les topics D455 sim n'ont pas de sync hardware,
+    # les timestamps des 4 flux (rgb/depth/camera_info/scan) doivent etre
+    # apparies par proximite temporelle.
+    approx_sync: true
+    sync_queue_size: 30
+
+    # --- Parametres RTAB-Map core (type string obligatoire) ----------------
+    # Convention interne RTAB-Map : tous les parametres prefixes par un nom
+    # de module (Rtabmap/, Mem/, Grid/, Reg/, Vis/, etc.) sont declares en
+    # string dans le noeud ROS, meme les valeurs numeriques. Le noeud parse
+    # ensuite selon le parametre. Un type double/int provoque un crash au
+    # demarrage (piege classique, invisible dans les tutos qui utilisent
+    # des launch files declarant les types via .yaml).
+
+    # Frequence de creation des keyframes SLAM (1 Hz = classique).
+    Rtabmap/DetectionRate: "1.0"
+
+    # Format de compression des images depth :
+    # - "" (defaut) : essaie .rvl mais fallback .png si non compatible
+    # - ".png" explicite : supprime le warning "Mem/SaveDepth16Format is set
+    #   to false to use 32bits format but not compatible with .rvl"
+    # Gazebo publie du 32FC1 en metres, incompatible avec .rvl (qui suppose
+    # du 16UC1 en mm). PNG est la bonne option pour la sim.
+    Mem/DepthCompressionFormat: ".png"
+
+    # Source de l'occupancy grid :
+    # - 0 : LiDAR uniquement (choix ici, coherent avec slam_toolbox precedent)
+    # - 1 : projection depuis nuage RGB-D (plus dense mais plus lourd)
+    # Fige explicitement pour supprimer le warning d'auto-selection au boot.
+    Grid/Sensor: "0"
