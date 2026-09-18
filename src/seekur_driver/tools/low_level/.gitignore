@@ -1,0 +1,3 @@
+# Binaire compile localement par le Makefile, ne pas versionner.
+# Reconstructible avec 'make' dans ce dossier.
+seekur_baudrate_detector
