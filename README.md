@@ -10,6 +10,7 @@ Le projet suit une approche **simulation-vers-réel** : toute la chaîne est
 développée et validée sur un jumeau virtuel, puis portée sur le robot physique
 en changeant deux paramètres.
 
+> Pour les commandes de lancement quotidiennes, voir `MEMO.md`.
 ---
 
 ## Contexte et architecture
@@ -169,6 +170,7 @@ variantes coexistent pour permettre la comparaison directe.
 | `nav.launch.py` | navigation nav2 sur odométrie brute |
 | `nav_ekf.launch.py` | navigation nav2 sur odométrie fusionnée |
 | `sim_yolo.launch.py` | simulation + détection YOLO 3D + rqt_image_view |
+| `sim_rtabmap.launch.py` | simulation + EKF + RTAB-Map SLAM 3D (remplace slam_toolbox) |
 
 ```bash
 ros2nv launch seekur_driver sim_yolo.launch.py
@@ -191,6 +193,7 @@ src/seekur_driver/
 │   ├── gz_bridge.yaml           # ponts ROS2 ↔ Gazebo
 │   ├── nav2_params.yaml         # paramètres nav2 (source unique)
 │   ├── slam_toolbox_params.yaml
+│   ├── rtabmap_params.yaml      # paramètres RTAB-Map SLAM 3D
 │   ├── ekf.yaml                 # robot_localization
 │   ├── seekur_params.yaml       # paramètres driver
 │   └── seekur_viz.rviz
@@ -198,8 +201,12 @@ src/seekur_driver/
 ├── urdf/
 │   └── seekur_jr_simple.urdf.xacro
 ├── worlds/
+│   ├── build_mine_gallery.py    # générateur du SDF ci-dessous
 │   ├── mine_gallery.sdf
 │   └── warehouse_simple.sdf
+├── tools/                       # utilitaires troubleshoot (voir tools/README.md)
+│   ├── interactive/             # contrôleurs SeekurOS Python
+│   └── low_level/               # diagnostic série C++
 └── seekur_driver/
     ├── seekur_driver_node.py         # driver ROS2 (série ou TCP)
     ├── seekur_protocol.py            # protocole SeekurOS
@@ -219,6 +226,7 @@ src/seekur_driver/
 | Fusion inertielle | `v6.0-ekf-fusion` | EKF IMU + odométrie, TF propre |
 | Caméra RGB-D | `v7.0-camera-d455` | D455 simulée, 848×480 @ 27 Hz |
 | Perception | `v8.0-yolo-perception` | YOLO 3D, détection personnes/véhicules |
+| SLAM 3D | `v9.0-rtabmap` | RTAB-Map dense + fermeture de boucle (593 keyframes / 73m / 16 loop closures sur mine_gallery) |
 
 **Navigation + EKF** — TF `map→odom` (AMCL, 25 Hz) et `odom→base_footprint`
 (EKF, 30 Hz), sans conflit. Navigation autonome fonctionnelle, dérive réduite.
@@ -231,7 +239,6 @@ latéral 2 mm. Consommation : 216 Mo VRAM, 9 % GPU sur RTX 4060.
 
 ### En cours
 
-- **P4 — RTAB-Map** : cartographie 3D dense de galerie, prochaine brique
 
 ### En attente de mesures physiques
 
