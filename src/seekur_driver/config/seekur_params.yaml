@@ -6,7 +6,7 @@ seekur_driver:
     timeout: 0.5
     
     # Frames
-    base_frame: "base_link"
+    base_frame: "base_footprint"
     odom_frame: "odom"
     
     # Limites de vitesse
@@ -14,7 +14,7 @@ seekur_driver:
     max_angular_vel: 3.14  # rad/s
     
     # Paramètres physiques robot
-    wheel_separation: 0.33  # m (SeekurJR)
+    wheel_separation: 0.663  # m (SeekurJR)
     
     # Publishing
     publish_tf: true

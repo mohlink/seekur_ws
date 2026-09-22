@@ -6,15 +6,54 @@
     <xacro:property name="robot_color" value="$(arg robot_color)"/>
 
     <!-- =======================================================
-         Proprietes SeekurJR - Datasheet officiel Adept Rev B
-         (SeekurJr-Datasheet-RevB.pdf, 2011, Adept MobileRobots)
+         Proprietes SeekurJR
+         Sources :
+           [DS]  Datasheet officiel Adept Rev B (2011)
+           [LAB] Mesures au lab UQAT 2026-09, pneus regonfles
+           [DED] Deduit par geometrie a partir de [DS] / [LAB]
+
+         Lecture du schema dimensionnel [DS] (verifiee au lab) :
+           vue de FACE : 835 = largeur hors-tout pneus
+                         663 = wheel separation (centre a centre)
+           vue de COTE : 1198 = longueur avec bumpers
+                         1051 = longueur chassis
+                          494 = hauteur totale du robot
+                          425 = empattement (axe avant - axe arriere)
+                                (non utilise ici : modele a 2 roues + roulette)
+
+         ATTENTION - deux erreurs corrigees par rapport aux versions
+         precedentes de ce fichier :
+           - 494 etait pris pour la largeur du chassis : c'est la HAUTEUR
+             totale du robot.
+           - 425 etait pris pour la hauteur du chassis : c'est l'EMPATTEMENT
+             longitudinal.
+         La coincidence numerique entre 494 et la largeur deduite (491) avait
+         masque la premiere erreur.
          ======================================================= -->
-    <xacro:property name="base_length" value="1.051" />      <!-- 1051 mm datasheet -->
-    <xacro:property name="base_width" value="0.494" />       <!-- 494 mm chassis hors roues -->
-    <xacro:property name="base_height" value="0.425" />      <!-- 425 mm hauteur chassis -->
-    <xacro:property name="wheel_radius" value="0.203" />     <!-- 16" pneumatique = 406 mm diam -->
-    <xacro:property name="wheel_length" value="0.10" />      <!-- largeur pneu approx 10 cm -->
-    <xacro:property name="wheel_separation" value="0.68" /> <!-- ESTIME : largeur_totale (663) - largeur_pneu (100). A MESURER AU LAB. -->
+
+    <!-- Chassis -->
+    <xacro:property name="base_length" value="1.051" />      <!-- [DS] 1051 mm (1198 mm bumpers inclus) -->
+    <xacro:property name="base_width" value="0.45" />        <!-- [LAB] largeur du chassis porteur ; gap ~20 mm par cote avec le pneu -->
+    <xacro:property name="base_height" value="0.381" />      <!-- [DED] hauteur totale 494 - garde au sol 113 -->
+    <xacro:property name="chassis_drop" value="0.09" />      <!-- [LAB] le chassis descend sous l'axe de roue (logement moteurs) -->
+
+    <!-- Roues : pneu marque 16 x 6.50-8 NHS -->
+    <xacro:property name="wheel_radius" value="0.203" />     <!-- [DS] 16" = 406 mm diam ; confirme [LAB] apres regonflage (20 cm) -->
+    <xacro:property name="wheel_length" value="0.165" />     <!-- [DS] 6.50" de section = 165 mm -->
+    <xacro:property name="wheel_separation" value="0.663" /> <!-- [DS] 663 mm ; confirme [LAB] a 3 mm pres -->
+
+    <!-- Mat de camera. Le top du chassis est a (base_height - chassis_drop)
+         dans base_link, soit 0.291 m ; la camera se deduit de la hauteur du
+         mat, ce qui garde les deux coherents si une dimension change. -->
+    <xacro:property name="camera_mast_height" value="0.12" />  <!-- [LAB] camera 12 cm au-dessus du top du chassis -->
+    <xacro:property name="camera_mast_radius" value="0.02" />  <!-- cosmetique, non mesure -->
+    <xacro:property name="camera_x" value="0.376" />           <!-- [LAB] 15 cm en retrait de la bordure avant : base_length/2 - 0.15 -->
+    <xacro:property name="chassis_top" value="${base_height - chassis_drop}" />
+
+    <!-- Geometrie verticale resultante (verification) :
+           axe de roue    = wheel_radius              = 0.203 m du sol
+           fond chassis   = 0.203 - chassis_drop      = 0.113 m du sol
+           top chassis    = 0.113 + base_height       = 0.494 m du sol  [DS] OK -->
 
     <!-- Masses (datasheet : robot complet 77 kg) -->
     <xacro:property name="base_mass" value="60.0" />         <!-- chassis + electronique -->
@@ -66,22 +105,26 @@
     <!-- Links -->
     <link name="base_footprint" />
 
+    <!-- base_link : origine a hauteur d'AXE DE ROUE (z = wheel_radius depuis
+         base_footprint), centree longitudinalement sur le chassis.
+         Le chassis lui-meme descend de chassis_drop sous cette origine, d'ou
+         le decalage -chassis_drop applique aux trois origines ci-dessous. -->
     <link name="base_link">
         <visual>
             <geometry>
                 <box size="${base_length} ${base_width} ${base_height}" />
             </geometry>
-            <origin xyz="0 0 ${base_height / 2.0}" rpy="0 0 0" />
+            <origin xyz="0 0 ${base_height / 2.0 - chassis_drop}" rpy="0 0 0" />
             <material name="robot_material"/>
         </visual>
         <collision>
             <geometry>
                 <box size="${base_length} ${base_width} ${base_height}" />
             </geometry>
-            <origin xyz="0 0 ${base_height / 2.0}" rpy="0 0 0" />
+            <origin xyz="0 0 ${base_height / 2.0 - chassis_drop}" rpy="0 0 0" />
         </collision>
-        <xacro:box_inertia m="${base_mass}" x="${base_length}" y="${base_width}" z="${base_height}" 
-                          o_xyz="0 0 ${base_height / 2.0}" o_rpy="0 0 0" />
+        <xacro:box_inertia m="${base_mass}" x="${base_length}" y="${base_width}" z="${base_height}"
+                          o_xyz="0 0 ${base_height / 2.0 - chassis_drop}" o_rpy="0 0 0" />
     </link>
 
     <link name="right_wheel_link">
@@ -98,7 +141,7 @@
             </geometry>
             <origin xyz="0 0 0" rpy="${pi / 2.0} 0 0" />
         </collision>
-        <xacro:cylinder_inertia m="${wheel_mass}" r="${wheel_radius}" l="${wheel_length}" 
+        <xacro:cylinder_inertia m="${wheel_mass}" r="${wheel_radius}" l="${wheel_length}"
                                o_xyz="0 0 0" o_rpy="${pi / 2.0} 0 0" />
     </link>
 
@@ -116,7 +159,7 @@
             </geometry>
             <origin xyz="0 0 0" rpy="${pi / 2.0} 0 0" />
         </collision>
-        <xacro:cylinder_inertia m="${wheel_mass}" r="${wheel_radius}" l="${wheel_length}" 
+        <xacro:cylinder_inertia m="${wheel_mass}" r="${wheel_radius}" l="${wheel_length}"
                                o_xyz="0 0 0" o_rpy="${pi / 2.0} 0 0" />
     </link>
 
@@ -134,7 +177,7 @@
             </geometry>
             <origin xyz="0 0 0" rpy="0 0 0" />
         </collision>
-        <xacro:sphere_inertia m="${caster_mass}" r="${wheel_radius / 2.0}" 
+        <xacro:sphere_inertia m="${caster_mass}" r="${wheel_radius / 2.0}"
                              o_xyz="0 0 0" o_rpy="0 0 0" />
     </link>
 
@@ -153,12 +196,12 @@
             </geometry>
             <origin xyz="0 0 0" rpy="0 0 0" />
         </collision>
-        <xacro:cylinder_inertia m="1.0" r="0.05" l="0.07" 
+        <xacro:cylinder_inertia m="1.0" r="0.05" l="0.07"
                                o_xyz="0 0 0" o_rpy="0 0 0" />
     </link>
 
-    <!-- IMU Link : centre du robot (bonne pratique fusion : proche du
-         centre de rotation, minimise les accelerations parasites en rotation).
+    <!-- IMU Link : monte sur la plateforme basse du chassis, sur l'axe
+         vertical de rotation (voir imu_joint pour le detail du placement).
          Petit box symbolique, inertie negligeable mais non nulle (exigence Gazebo). -->
     <link name="imu_link">
         <visual>
@@ -185,6 +228,23 @@
          optique dans les messages ROS -> memes conventions que le vrai
          driver realsense2_camera.
          ================================================================ -->
+    <!-- Mat support de la camera : simple montant vertical entre le top du
+         chassis et la camera. Purement cosmetique (sans lui la camera
+         flotte en l'air dans RViz et Gazebo), mais il rend le modele
+         lisible d'un coup d'oeil. Visual + inertie seulement, pas de
+         collision : meme convention que camera_link et imu_link. -->
+    <link name="camera_mast_link">
+        <visual>
+            <geometry>
+                <cylinder radius="${camera_mast_radius}" length="${camera_mast_height}" />
+            </geometry>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <material name="grey" />
+        </visual>
+        <xacro:cylinder_inertia m="0.3" r="${camera_mast_radius}" l="${camera_mast_height}"
+                               o_xyz="0 0 0" o_rpy="0 0 0" />
+    </link>
+
     <link name="camera_link">
         <visual>
             <!-- D455 : 124 x 26 x 29 mm approximatif (bandeau caviar) -->
@@ -211,28 +271,51 @@
         <origin xyz="0 0 ${wheel_radius}" rpy="0 0 0"/>
     </joint>
 
+    <!-- Roues motrices.
+         Y : depuis wheel_separation [DS] directement. NE PAS recalculer
+             depuis base_width + wheel_length : le chassis a un gap de
+             degagement avec le pneu, les deux grandeurs sont independantes.
+         X : -base_length/4. Le vrai robot a 4 roues en skid-steer ; ce
+             modele en a 2 + une roulette avant, donc l'empattement reel
+             (425 mm [DS]) ne s'applique pas ici et n'est pas modelise.
+
+         LIMITE CONNUE - centre de rotation.
+         Le vrai SeekurJR pivote au milieu de son empattement (x = 0).
+         Ce modele pivote autour de l'axe de ses deux roues (x = -0.263),
+         donc en rotation pure il decrit un arc de 26 cm de rayon au lieu
+         de tourner sur place. Biais systematique, borne, connu.
+         Correction possible le jour ou une rotation reelle est disponible
+         pour comparaison : roues a x = 0 + une seconde roulette a
+         l'arriere pour l'equilibre. Non fait pour l'instant : ce modele
+         est stable dans Gazebo et a servi de base aux jalons v6 a v9,
+         toucher a l'equilibre introduirait un risque non borne pour
+         corriger une erreur qui l'est. -->
     <joint name="base_right_wheel_joint" type="continuous">
         <parent link="base_link" />
         <child link="right_wheel_link" />
-        <origin xyz="${-base_length / 4.0} ${-(base_width + wheel_length) / 2.0} 0" rpy="0 0 0" />
+        <origin xyz="${-base_length / 4.0} ${-wheel_separation / 2.0} 0" rpy="0 0 0" />
         <axis xyz="0 1 0" />
     </joint>
 
     <joint name="base_left_wheel_joint" type="continuous">
         <parent link="base_link" />
         <child link="left_wheel_link" />
-        <origin xyz="${-base_length / 4.0} ${(base_width + wheel_length) / 2.0} 0" rpy="0 0 0" />
+        <origin xyz="${-base_length / 4.0} ${wheel_separation / 2.0} 0" rpy="0 0 0" />
         <axis xyz="0 1 0" />
     </joint>
 
-    <!-- IMU monte au CENTRE geometrique du chassis, a mi-hauteur.
-         Centre de rotation du robot -> minimise les artefacts d'acceleration
-         centripete quand le robot tourne. base_link est au sol via base_joint,
-         donc z = base_height/2 place l'IMU a mi-hauteur du chassis. -->
+    <!-- IMU monte au centre de la PLATEFORME BASSE du chassis.
+         x = y = 0 : sur l'axe vertical de rotation du robot, donc aucune
+           acceleration centripete parasite en rotation lacet.
+         z = -chassis_drop : le fond du chassis, soit 0.113 m du sol.
+           Plus bas que l'ancienne position a mi-hauteur, et donc plus
+           proche du plan des axes de roue (z = 0) autour duquel se fait
+           le tangage quand le robot franchit un obstacle : moins
+           d'acceleration parasite injectee dans l'EKF sur terrain irregulier. -->
     <joint name="imu_joint" type="fixed">
         <parent link="base_link" />
         <child link="imu_link" />
-        <origin xyz="0 0 ${base_height / 2.0}" rpy="0 0 0" />
+        <origin xyz="0 0 ${-chassis_drop}" rpy="0 0 0" />
     </joint>
 
     <joint name="base_caster_wheel_joint" type="fixed">
@@ -241,25 +324,43 @@
         <origin xyz="${base_length / 3.0} 0 ${-wheel_radius / 2.0}" rpy="0 0 0" />
     </joint>
 
+    <!-- LiDAR SICK, monte en saillie a l'AVANT sur support en equerre.
+         z : [LAB] 39 cm du sol apres regonflage -> 0.39 - 0.203 = 0.187
+         x : [EST] le boitier est sensiblement a l'aplomb de la bordure
+             avant du chassis (base_length/2 = 0.5255). Valeur a confirmer
+             au ruban : distance centre du boitier <-> bordure avant.
+         y : NON MESURE. La vue de dessus montre le LiDAR decale vers la
+             GAUCHE du robot (il deborde du contour bleu de ce cote), mais
+             la valeur n'a pas ete relevee. Laisse a 0 volontairement :
+             mettre une estimation ici propagerait une erreur silencieuse
+             dans toute la carte SLAM (un decalage lateral non modelise
+             biaise les distances mur gauche / mur droit).
+             A MESURER : distance centre du boitier <-> axe longitudinal. -->
     <joint name="laser_joint" type="fixed">
         <parent link="base_link" />
         <child link="laser_frame" />
-        <!-- LiDAR monte a l'AVANT en saillie, centre optique a mi-hauteur
-            chassis (photo robot UQAT 2026-08). x=0.55 (devant le chassis),
-            z=0.10 relatif a base_link (=0.30 m du sol). A affiner par
-            mesure physique precise au lab. -->
-        <origin xyz="0.55 0 0.10" rpy="0 0 0" />
+        <origin xyz="0.535 0 0.187" rpy="0 0 0" />
     </joint>
 
-    <!-- Camera sur mat : legerement devant le centre du chassis, ~60 cm
-         au-dessus de base_link (~80 cm du sol total). Position ESTIMEE,
-         a mesurer au lab. Le mat lui-meme n'est pas modelise visuellement
-         (detail cosmetique) - on modelise juste la position de la camera
-         qui compte pour la simulation. -->
+    <!-- Mat : pose sur le top du chassis, monte de camera_mast_height.
+         Son origine est au milieu du cylindre, d'ou le /2. -->
+    <joint name="camera_mast_joint" type="fixed">
+        <parent link="base_link" />
+        <child link="camera_mast_link" />
+        <origin xyz="${camera_x} 0 ${chassis_top + camera_mast_height / 2.0}" rpy="0 0 0" />
+    </joint>
+
+    <!-- Camera RealSense D455, en haut du mat.
+         x : [LAB] 15 cm en retrait de la bordure avant du chassis
+             -> base_length/2 - 0.15 = 0.5255 - 0.15 = 0.376
+         z : [LAB] 12 cm au-dessus du top du chassis (494 mm du sol [DS])
+             -> chassis_top + camera_mast_height = 0.291 + 0.12 = 0.411
+                soit 0.614 m du sol
+         y : suppose centree. A confirmer d'un coup d'oeil depuis le dessus. -->
     <joint name="camera_joint" type="fixed">
         <parent link="base_link" />
         <child link="camera_link" />
-        <origin xyz="0.3 0 0.6" rpy="0 0 0" />
+        <origin xyz="${camera_x} 0 ${chassis_top + camera_mast_height}" rpy="0 0 0" />
     </joint>
 
     <!-- Joint optique : rotation qui aligne le repere optique standard
@@ -274,14 +375,17 @@
         <plugin filename="libgz-sim-diff-drive-system.so" name="gz::sim::systems::DiffDrive">
             <left_joint>base_left_wheel_joint</left_joint>
             <right_joint>base_right_wheel_joint</right_joint>
-            <wheel_separation>0.68</wheel_separation>      <!-- MAJ Rev B -->
-            <wheel_radius>0.203</wheel_radius>              <!-- MAJ Rev B -->
+            <!-- Doivent rester coherents avec les proprietes xacro en tete
+                 de fichier. Gazebo ne lit pas les ${} ici, d'ou la
+                 duplication en dur des valeurs. -->
+            <wheel_separation>0.663</wheel_separation>      <!-- [DS] -->
+            <wheel_radius>0.203</wheel_radius>              <!-- [DS] -->
 
             <topic>cmd_vel</topic>
             <odom_topic>odom</odom_topic>
             <tf_topic>tf</tf_topic>
             <frame_id>odom</frame_id>
-            <child_frame_id>base_footprint</child_frame_id>  <!-- CHANGEMENT ICI -->
+            <child_frame_id>base_footprint</child_frame_id>
             <publish_odom>true</publish_odom>
             <publish_odom_tf>false</publish_odom_tf>
             <!-- IMPORTANT : false. C'est robot_state_publisher qui doit
@@ -324,7 +428,7 @@
         <sensor name="laser_scanner" type="gpu_lidar">
             <pose>0 0 0 0 0 0</pose>
             <topic>scan</topic>
-            <gz_frame_id>laser_frame</gz_frame_id> 
+            <gz_frame_id>laser_frame</gz_frame_id>
             <update_rate>25</update_rate>   <!-- 10 -> 25 (LMS111 standard) -->
             <ray>
                 <scan>
@@ -343,7 +447,7 @@
                 <noise>
                     <type>gaussian</type>
                     <mean>0.0</mean>
-                    <stddev>0.01</stddev> <!-- 0.01 -> 0.012 (spec réelle) -->  
+                    <stddev>0.01</stddev> <!-- 0.01 -> 0.012 (spec réelle) -->
                 </noise>
             </ray>
         </sensor>
@@ -383,7 +487,7 @@
            - image depth   (aligned sur RGB)
            - point cloud   (depth reprojete + couleur)
            - camera_info
-         
+
          Spec D455 reproduites :
            - FOV RGB   90 deg horizontal (Intel : 90x65)
            - FOV depth 87 deg horizontal (Intel : 87x58) - approx via un seul
@@ -391,7 +495,7 @@
            - Resolution 848x480 @ 30 Hz (native RealSense, adapte YOLO/RTAB)
              REQUIERT CycloneDDS - voir commentaire sur update_rate
            - Portee depth clip 0.6 - 6.0 m (spec D455)
-         
+
          gz_frame_id=camera_optical_frame -> les messages sortent avec le
          frame optique dans le header (RTAB-Map/YOLO/RViz OK). Le sensor
          est physiquement attache a camera_link (X pointe vers la scene),
@@ -405,7 +509,7 @@
                  rmw_cyclonedds_cpp). Avec FastDDS (defaut Jazzy), les
                  topics image/depth/pointcloud s'effondrent a 6-13 Hz avec
                  des blocages de ~1 s, quelle que soit la resolution.
-                 
+
                  Diagnostic 2026-08, causes ECARTEES une par une :
                    - GPU        : RTX 4060 a 32% d'utilisation, large marge
                    - Gazebo     : produisait bien 14.4 Hz (mesure gz topic)
@@ -416,7 +520,7 @@
                  loopback. Une image 848x480 RGB depasse largement le seuil
                  de fragmentation ; FastDDS echoue a reconstituer, Cyclone
                  y arrive sans peine.
-                 
+
                  Apres bascule CycloneDDS : 14.4 Hz recus pour 14.4 Hz
                  produits, ecart-type 0.006 s. Zero perte. -->
             <update_rate>30</update_rate>
@@ -446,15 +550,15 @@
     <gazebo reference="base_link">
        <material>Gazebo/Grey</material>
     </gazebo>
-    
+
     <gazebo reference="right_wheel_link">
         <material>Gazebo/Black</material>
     </gazebo>
-    
+
     <gazebo reference="left_wheel_link">
         <material>Gazebo/Black</material>
     </gazebo>
-    
+
     <gazebo reference="caster_wheel_link">
         <material>Gazebo/Black</material>
         <mu1 value="0.001" />
@@ -465,8 +569,11 @@
         <material>Gazebo/Blue</material>
     </gazebo>
 
+    <gazebo reference="camera_mast_link">
+        <material>Gazebo/Grey</material>
+    </gazebo>
+
     <gazebo reference="camera_link">
         <material>Gazebo/Black</material>
     </gazebo>
-    
 </robot>
