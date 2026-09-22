@@ -1,0 +1,17 @@
+# twist_mux pour SeekurJR — sortie en Twist SIMPLE (non stampé).
+# Le driver SeekurJR consomme un geometry_msgs/msg/Twist sur /cmd_vel.
+# NB: config inverse de mobibot/NaviBot, qui était en TwistStamped.
+
+twist_mux:
+  ros__parameters:
+    use_stamped: false        # sortie Twist simple, pas TwistStamped
+
+    topics:
+      joystick:
+        topic:    /cmd_vel_joy
+        timeout:  0.5
+        priority: 100          # priorité haute : reprend la main dès que tu bouges
+      navigation:
+        topic:    /cmd_vel_nav
+        timeout:  0.5
+        priority: 10           # priorité basse : Nav2 quand le joystick est lâché
