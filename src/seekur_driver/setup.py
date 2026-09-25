@@ -4,18 +4,34 @@ from glob import glob
 
 package_name = 'seekur_driver'
 
+# data_files ne copie que des FICHIERS et ne descend pas dans les sous-dossiers.
+# files() : glob qui ignore les dossiers (evite l'erreur "not a regular file").
+# tree()  : installe un dossier recursivement en gardant sa structure.
+
+def files(pattern):
+    """glob limité aux fichiers : un sous-dossier ne casse plus le build."""
+    return [f for f in glob(pattern) if os.path.isfile(f)]
+
+
+def tree(src):
+    """Installe récursivement src/ sous share/<package>/src/ (structure conservée)."""
+    return [(os.path.join('share', package_name, d), [os.path.join(d, f) for f in fs])
+            for d, _, fs in os.walk(src) if fs]
+
+
 setup(
     name=package_name,
     version='1.0.0',
     packages=[package_name],
     data_files=[
-    ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
-    ('share/' + package_name, ['package.xml']),
-    (os.path.join('share', package_name, 'launch'), glob('launch/*')),        # Tous les fichiers launch
-    (os.path.join('share', package_name, 'config'), glob('config/*')),       # Tous les fichiers config
-    (os.path.join('share', package_name, 'worlds'), glob('worlds/*')),
-    (os.path.join('share', package_name, 'urdf'), glob('urdf/*')),           # Tous les fichiers urdf
-    ],
+        ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
+        ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', package_name, 'launch'), files('launch/*')),
+        (os.path.join('share', package_name, 'config'), files('config/*')),
+        (os.path.join('share', package_name, 'worlds'), files('worlds/*')),
+        (os.path.join('share', package_name, 'urdf'), files('urdf/*')),
+    ] + tree('description/meshes') + tree('worlds/models'),
+    
     install_requires=['setuptools'],
     zip_safe=True,
     maintainer='Your Name',

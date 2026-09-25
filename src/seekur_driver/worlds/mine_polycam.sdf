@@ -1,0 +1,53 @@
+<?xml version="1.0" ?>
+<!--
+=================================================================
+  mine_polycam.sdf - Galerie de mine REELLE (scan Polycam)
+
+  Modele : worlds/models/mine_scan (resolu via GZ_SIM_RESOURCE_PATH,
+           positionne par sim.launch.py).
+  Spawn  : le robot apparait en (0, 0, 0.1) ; l'origine du scan a ete
+           placee dans Blender au point de spawn, sol a z = 0.
+
+  NOM DU MONDE = "empty" : NE PAS CHANGER. gz_bridge.yaml ecoute
+  /world/empty/model/seekur_jr/joint_state ; un autre nom coupe
+  /joint_states et les roues disparaissent de RViz.
+
+  Eclairage : la texture Polycam contient deja l'eclairage de la prise
+  de vue. Ambiante forte + soleil sans ombres : la galerie etant
+  fermee, un soleil avec ombres la laisserait noire.
+=================================================================
+-->
+<sdf version="1.9">
+  <world name="empty">
+
+    <plugin filename="gz-sim-physics-system"
+            name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-scene-broadcaster-system"
+            name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-user-commands-system"
+            name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-contact-system"
+            name="gz::sim::systems::Contact"/>
+    <!-- gz-sim-sensors-system est charge par le xacro du robot -->
+
+    <scene>
+      <ambient>0.7 0.7 0.7 1</ambient>
+      <background>0.05 0.05 0.05 1</background>
+      <shadows>false</shadows>
+    </scene>
+
+    <light type="directional" name="sun">
+      <cast_shadows>false</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.5 0.5 0.5 1</diffuse>
+      <specular>0.1 0.1 0.1 1</specular>
+      <direction>-0.3 0.2 -0.9</direction>
+    </light>
+
+    <include>
+      <uri>model://mine_scan</uri>
+      <pose>0 0 0 0 0 0</pose>
+    </include>
+
+  </world>
+</sdf>

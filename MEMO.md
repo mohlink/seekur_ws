@@ -29,6 +29,16 @@ Rappels :
 
 ## Simulation
 
+### Pour lancer la mannette
+
+ros2 launch seekur_driver joystick.launch.py
+ros2 launch seekur_driver teleop.launch.py   ## avec mux
+
+### Pour visionner la camera
+ros2 run rqt_image_view rqt_image_view
+
+rtabmap-databaseViewer ~/.ros/rtabmap.db
+
 ### Simulation de base (sans EKF, sans perception)
 
     ros2nv launch seekur_driver sim.launch.py
@@ -158,3 +168,14 @@ Séquence type prévue :
 
     ros2 param list /rtabmap
     ros2 param get /rtabmap Rtabmap/DetectionRate
+    
+### note    
+ros2 topic echo /scan --once | head -20
+
+ros2 topic echo /cmd_vel_nav --once
+ros2 topic hz /cmd_vel_nav
+
+ros2 topic echo /odom nav_msgs/msg/Odometry  |grep -A3 'position:'
+
+
+ros2 run plotjuggler plotjuggler

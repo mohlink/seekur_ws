@@ -135,11 +135,10 @@ def generate_launch_description():
             name='joy_node',
             output='screen',
             condition=IfCondition(LaunchConfiguration('joy')),
-            parameters=[{
-                'use_sim_time': use_sim_time,
-                'deadzone': 0.05,
-                'autorepeat_rate': 20.0,
-            }],
+            parameters=[
+                os.path.join(pkg_share_dir, 'config', 'joystick.yaml'),
+                {'use_sim_time': use_sim_time},
+            ],
         ),
 
         Node(
@@ -148,18 +147,11 @@ def generate_launch_description():
             name='teleop_twist_joy_node',
             output='screen',
             condition=IfCondition(LaunchConfiguration('joy')),
-            parameters=[{
-                'use_sim_time': use_sim_time,
-                # Config par defaut de teleop_twist_joy. A ajuster si le
-                # mapping des boutons ne correspond pas a ta manette
-                # ShanWan (visible dans lsusb comme 2563:0575).
-                'require_enable_button': True,
-                'enable_button': 4,        # LB / bouton haut-gauche = dead-man
-                'axis_linear.x': 1,        # stick gauche vertical
-                'scale_linear.x': 0.5,     # 0.5 m/s max en pilotage (max hard 1.2)
-                'axis_angular.yaw': 3,     # stick droit horizontal
-                'scale_angular.yaw': 1.0,  # 1.0 rad/s max en pilotage
-            }],
+            remappings=[('/cmd_vel', '/cmd_vel_joy')],
+            parameters=[
+                os.path.join(pkg_share_dir, 'config', 'joystick.yaml'),
+                {'use_sim_time': use_sim_time},
+            ],
         ),
         Node(
             package='twist_mux',
@@ -167,12 +159,29 @@ def generate_launch_description():
             name='twist_mux',
             output='screen',
             condition=IfCondition(LaunchConfiguration('joy')),
+            remappings=[('cmd_vel_out', 'cmd_vel')],           
             parameters=[
                 # Config : /cmd_vel_joy (prio 100, manette) et /cmd_vel_nav
                 # (prio 10, nav2 futur) fusionnes vers /cmd_vel. use_stamped:
                 # false coherent avec seekur_driver qui attend du Twist simple.
                 os.path.join(pkg_share_dir, 'config', 'twist_mux.yaml'),
                 {'use_sim_time': use_sim_time},
+            ],
+        ),
+
+        # ================================================================
+        # LiDAR SICK LMS111-10100 sur Ethernet
+        # Driver Clearpath 'lms1xx', validé sur firmware V1.31 (2011).
+        # sick_scan_xd 3.9.0 crashait au premier télégramme (parsing binaire
+        # incompatible avec ce firmware d'origine).
+        # ================================================================
+        Node(
+            package='lms1xx',
+            executable='lms1xx',
+            name='lms1xx',
+            output='screen',
+            parameters=[
+                os.path.join(pkg_share_dir, 'config', 'lms111.yaml'),
             ],
         ),
 

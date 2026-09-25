@@ -24,6 +24,23 @@ VERSION N2 (2026-08) - Modifications par rapport à la version initiale :
    odom -> base_footprint. Gazebo ne les publie plus (publish_odom_tf
    false dans le xacro, /odom rerouté en /sim/odom dans le bridge).
 
+VERSION N3 (2026-09, robot réel) — correction du mouvement saccadé :
+
+5. Émission des commandes DÉCOUPLÉE de la réception /cmd_vel.
+   Mesuré au lab : /cmd_vel sortait à ~100 Hz, soit 1800 octets/s à
+   écouler sur une liaison 9600 bauds (capacité 960 octets/s). Le
+   buffer saturait, la latence s'accumulait, le robot exécutait des
+   consignes périmées. Le callback ne fait plus que mémoriser la
+   consigne ; un timer (cmd_rate, 10 Hz) l'émet, et uniquement si la
+   valeur a changé. Ajout d'un cmd_timeout (0.5 s) qui force l'arrêt
+   si /cmd_vel se tait — le PULSE maintient la liaison, donc le
+   watchdog firmware ne jouerait pas ce rôle.
+
+6. Le verrou ne couvre plus la lecture des SIP : read(1024) bloque
+   jusqu'à `timeout` secondes et gelait toutes les écritures pendant
+   ce temps. Lecture et écriture sont indépendantes ; le verrou ne
+   protège que contre l'entrelacement des trames émises.
+
 Note DTR/RTS : on reproduit exactement le comportement du script
 interactif validé (setDTR(False), setRTS(False) après ouverture).
 L'historique du projet mentionne que l'ACTIVATION de ces signaux était
@@ -184,6 +201,15 @@ class SeekurDriverNode(Node):
                 ('odom_freq', 20.0),        # Hz (SIP arrivent a 10 Hz)
                 ('battery_freq', 1.0),      # Hz
                 ('diagnostics_freq', 1.0),  # Hz
+                # Cadence d'EMISSION serie des commandes de mouvement.
+                # Decouple de la cadence de reception sur /cmd_vel (cf. note 5).
+                ('cmd_rate', 10.0),         # Hz
+                # Securite : si aucun /cmd_vel recu depuis ce delai, on force
+                # l'arret. Le PULSE du watchdog maintient la liaison vivante,
+                # donc le watchdog firmware (2 s) n'arretera PAS le robot en
+                # cas de crash de nav2 ou du teleop : ce timeout est le seul
+                # filet cote client.
+                ('cmd_timeout', 0.5),       # s
             ]
         )
 
@@ -205,8 +231,18 @@ class SeekurDriverNode(Node):
         self.watchdog_active = False
         self.monitor_active = False
 
-        # Verrou d'accès au port (cf. note d'en-tête (3))
+        # Verrou d'ECRITURE sur le port (cf. note d'en-tête (3))
         self._io_lock = threading.Lock()
+
+        # --- Consigne de mouvement (cf. note d'en-tête (5)) ---
+        # Le callback /cmd_vel ne fait qu'ECRIRE ici ; c'est le timer
+        # send_pending_commands() qui emet sur le port, a cadence maitrisee.
+        self._cmd_lock = threading.Lock()
+        self.target_vel_mms = 0
+        self.target_rvel_degs = 0
+        self.last_sent_vel = None       # None = jamais emis
+        self.last_sent_rvel = None
+        self.last_cmd_time = 0.0        # horodatage du dernier /cmd_vel recu
 
         # Threads
         self.watchdog_thread: Optional[threading.Thread] = None
@@ -241,9 +277,13 @@ class SeekurDriverNode(Node):
         battery_freq = self.get_parameter('battery_freq').value
         diagnostics_freq = self.get_parameter('diagnostics_freq').value
 
+        self.cmd_rate = self.get_parameter('cmd_rate').value
+        self.cmd_timeout = self.get_parameter('cmd_timeout').value
+
         self.odom_timer = self.create_timer(1.0 / odom_freq, self.publish_odometry)
         self.battery_timer = self.create_timer(1.0 / battery_freq, self.publish_battery)
         self.diagnostics_timer = self.create_timer(1.0 / diagnostics_freq, self.publish_diagnostics)
+        self.cmd_timer = self.create_timer(1.0 / self.cmd_rate, self.send_pending_commands)
 
         # Initialisation
         self.get_logger().info(f'SeekurJR Driver démarré - Port: {self.serial_port}')
@@ -346,7 +386,16 @@ class SeekurDriverNode(Node):
     # -------------------------------------------------------------------------
 
     def cmd_vel_callback(self, msg: Twist):
-        """Traduit /cmd_vel (Twist) en trames VEL + RVEL SeekurOS"""
+        """Enregistre la consigne /cmd_vel. N'ECRIT PAS sur le port.
+
+        Mesure 2026-09 sur le robot reel : /cmd_vel sortait a ~100 Hz
+        (teleop_twist_joy autorepeat + republication twist_mux). Chaque
+        message declenchait 2 trames de 9 octets, soit 1800 octets/s a
+        emettre sur une liaison 9600 bauds qui n'en transporte que 960.
+        Le buffer se remplissait, la latence s'accumulait et le robot
+        executait des consignes perimees -> mouvement saccade.
+        L'emission est maintenant faite par send_pending_commands().
+        """
         if not self.connected or not self.initialized:
             return
 
@@ -355,11 +404,43 @@ class SeekurDriverNode(Node):
         angular_vel_rads = max(-self.max_angular_vel, min(self.max_angular_vel, msg.angular.z))
 
         # Conversion vers unités SeekurOS
-        linear_vel_mms = int(linear_vel_ms * 1000)                    # mm/s
-        angular_vel_degs = int(angular_vel_rads * 180.0 / math.pi)    # deg/s
+        with self._cmd_lock:
+            self.target_vel_mms = int(linear_vel_ms * 1000)                  # mm/s
+            self.target_rvel_degs = int(angular_vel_rads * 180.0 / math.pi)  # deg/s
+            self.last_cmd_time = time.time()
 
-        self.send_velocity_command(linear_vel_mms)
-        self.send_rotation_command(angular_vel_degs)
+    def send_pending_commands(self):
+        """Emet la consigne courante sur le port, a cadence cmd_rate.
+
+        Deux economies : la cadence est plafonnee, et une trame n'est
+        emise que si la valeur a CHANGE. En pilotage manuel le stick
+        bouge peu, donc la plupart des cycles n'emettent rien.
+        Pire cas a 10 Hz : 180 octets/s, soit 19 % de la liaison.
+        """
+        if not self.connected or not self.initialized:
+            return
+
+        with self._cmd_lock:
+            vel = self.target_vel_mms
+            rvel = self.target_rvel_degs
+            age = time.time() - self.last_cmd_time
+
+            # Securite : plus de /cmd_vel depuis cmd_timeout -> arret.
+            # Le PULSE maintenant la liaison, le watchdog firmware ne
+            # prendrait pas le relais si nav2 ou le teleop s'arretait.
+            if self.last_cmd_time > 0.0 and age > self.cmd_timeout:
+                vel = 0
+                rvel = 0
+                self.target_vel_mms = 0
+                self.target_rvel_degs = 0
+
+        if vel != self.last_sent_vel:
+            self.send_velocity_command(vel)
+            self.last_sent_vel = vel
+
+        if rvel != self.last_sent_rvel:
+            self.send_rotation_command(rvel)
+            self.last_sent_rvel = rvel
 
     def send_velocity_command(self, vel_mms: int):
         """Trame VEL avec correction bidirectionnelle firmware.
@@ -445,8 +526,14 @@ class SeekurDriverNode(Node):
         buf = bytearray()
         while self.monitor_active and self.ser and self.ser.is_open:
             try:
-                with self._io_lock:
-                    chunk = self.ser.read(1024)
+                # PAS de _io_lock ici (cf. note d'en-tête (6)) : read(1024)
+                # bloque jusqu'a `timeout` secondes, et tenir le verrou
+                # pendant ce temps bloquait toutes les ecritures (VEL, RVEL,
+                # PULSE). Lecture et ecriture sont deux directions
+                # independantes, sur port serie comme sur socket TCP :
+                # le verrou ne sert qu'a empecher l'entrelacement des
+                # trames EMISES.
+                chunk = self.ser.read(1024)
                 if chunk:
                     buf += chunk
                     self._parse_sip_packets(buf)

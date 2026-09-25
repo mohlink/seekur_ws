@@ -8,12 +8,14 @@ Panels:
         - /Status1
         - /RobotModel1
         - /TF1
+        - /TF1/Frames1
         - /LaserScan1
-        - /LaserScan1/Status1
         - /LaserScan1/Topic1
         - /Odometry1
+        - /Camera1
+        - /Camera1/Visibility1
       Splitter Ratio: 0.5
-    Tree Height: 895
+    Tree Height: 603
   - Class: rviz_common/Selection
     Name: Selection
   - Class: rviz_common/Tool Properties
@@ -75,7 +77,36 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
+        camera_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        camera_mast_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        camera_optical_frame:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
         caster_wheel_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        front_left_wheel_visual_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        front_right_wheel_visual_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        imu_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -86,6 +117,16 @@ Visualization Manager:
           Show Trail: false
           Value: true
         left_wheel_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        rear_left_wheel_visual_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        rear_right_wheel_visual_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -109,38 +150,66 @@ Visualization Manager:
       Filter (whitelist): ""
       Frame Timeout: 15
       Frames:
-        All Enabled: true
+        All Enabled: false
         base_footprint:
           Value: true
         base_link:
           Value: true
+        camera_link:
+          Value: false
+        camera_mast_link:
+          Value: false
+        camera_optical_frame:
+          Value: true
         caster_wheel_link:
+          Value: false
+        front_left_wheel_visual_link:
+          Value: true
+        front_right_wheel_visual_link:
+          Value: true
+        imu_link:
           Value: true
         laser_frame:
           Value: true
         left_wheel_link:
-          Value: true
+          Value: false
         odom:
           Value: true
+        rear_left_wheel_visual_link:
+          Value: true
+        rear_right_wheel_visual_link:
+          Value: true
         right_wheel_link:
-          Value: true
-        seekur_jr/base_footprint/laser_scanner:
-          Value: true
+          Value: false
       Marker Scale: 1
       Name: TF
       Show Arrows: true
       Show Axes: true
-      Show Names: true
+      Show Names: false
       Tree:
         odom:
           base_footprint:
             base_link:
+              camera_link:
+                camera_optical_frame:
+                  {}
+              camera_mast_link:
+                {}
               caster_wheel_link:
                 {}
+              front_left_wheel_visual_link:
+                {}
+              front_right_wheel_visual_link:
+                {}
+              imu_link:
+                {}
               laser_frame:
-                seekur_jr/base_footprint/laser_scanner:
-                  {}
+                {}
               left_wheel_link:
+                {}
+              rear_left_wheel_visual_link:
+                {}
+              rear_right_wheel_visual_link:
                 {}
               right_wheel_link:
                 {}
@@ -238,6 +307,28 @@ Visualization Manager:
         Value: /map_updates
       Use Timestamp: false
       Value: false
+    - Class: rviz_default_plugins/Camera
+      Enabled: true
+      Far Plane Distance: 100
+      Image Rendering: background and overlay
+      Name: Camera
+      Overlay Alpha: 0.5
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /camera/color/image_raw
+      Value: true
+      Visibility:
+        Grid: true
+        LaserScan: true
+        Map: true
+        Odometry: true
+        RobotModel: true
+        TF: true
+        Value: false
+      Zoom Factor: 1
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -284,39 +375,41 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 5.855626106262207
+      Distance: 4.753683090209961
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.06026412546634674
-        Y: -0.30009162425994873
-        Z: 0.549015462398529
+        X: -5.060853958129883
+        Y: -1.0077420473098755
+        Z: 8.602272987365723
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.42039793729782104
+      Pitch: 0.3603978753089905
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz_default_plugins)
-      Yaw: 0.398539662361145
+      Yaw: 0.0035729343071579933
     Saved: ~
 Window Geometry:
+  Camera:
+    collapsed: false
   Displays:
     collapsed: false
-  Height: 1131
+  Height: 839
   Hide Left Dock: false
   Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd00000004000000000000026e0000040dfc0200000009fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb000000100044006900730070006c006100790073010000003f0000040d000000cc00fffffffb0000001200530065006c0065006300740069006f006e0000000303000000920000005d00fffffffb0000001e0054006f006f006c002000500072006f0070006500720074006900650073000000037c000000d00000005d00fffffffb0000000a00560069006500770073000000036b000000e1000000a900ffffff000000010000010f000003c9fc0200000002fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e100000197000000030000073e0000003efc0100000002fb0000000800540069006d006501000000000000073e0000000000000000fb0000000800540069006d00650100000000000004500000000000000000000004ca0000040d00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd00000004000000000000017b000002e9fc020000000afb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb000000100044006900730070006c006100790073010000003f000002e9000000cc00fffffffb0000001200530065006c0065006300740069006f006e0000000303000000920000005d00fffffffb0000001e0054006f006f006c002000500072006f0070006500720074006900650073000000037c000000d00000005d00fffffffb0000000a00560069006500770073000000036b000000e1000000a900fffffffb0000000c00430061006d00650072006103000000f3000000dd0000017b00000167000000010000010f000003c9fc0200000002fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e100000197000000030000073e0000003efc0100000002fb0000000800540069006d006501000000000000073e0000000000000000fb0000000800540069006d0065010000000000000450000000000000000000000241000002e900000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Tool Properties:
     collapsed: false
   Views:
     collapsed: false
-  Width: 1854
-  X: 66
-  Y: 32
+  Width: 962
+  X: 77
+  Y: 677

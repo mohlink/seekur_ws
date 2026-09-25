@@ -48,6 +48,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.parameter_descriptions import ParameterValue
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction, AppendEnvironmentVariable
 
 MODEL_NAME = 'seekur_jr'
 
@@ -79,6 +80,11 @@ def generate_launch_description():
     ])
 
     return LaunchDescription([
+
+        AppendEnvironmentVariable(
+            'GZ_SIM_RESOURCE_PATH',
+            PathJoinSubstitution([pkg_share, 'worlds', 'models']),
+        ),
 
         # --- Declarations d'arguments ---------------------------------------
         DeclareLaunchArgument(

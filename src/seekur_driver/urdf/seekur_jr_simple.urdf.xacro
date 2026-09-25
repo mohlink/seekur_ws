@@ -19,7 +19,8 @@
                          1051 = longueur chassis
                           494 = hauteur totale du robot
                           425 = empattement (axe avant - axe arriere)
-                                (non utilise ici : modele a 2 roues + roulette)
+                                (utilise UNIQUEMENT pour placer les 4 roues
+                                visuelles ; la physique reste a 2 roues + roulette)
 
          ATTENTION - deux erreurs corrigees par rapport aux versions
          precedentes de ce fichier :
@@ -41,6 +42,14 @@
     <xacro:property name="wheel_radius" value="0.203" />     <!-- [DS] 16" = 406 mm diam ; confirme [LAB] apres regonflage (20 cm) -->
     <xacro:property name="wheel_length" value="0.165" />     <!-- [DS] 6.50" de section = 165 mm -->
     <xacro:property name="wheel_separation" value="0.663" /> <!-- [DS] 663 mm ; confirme [LAB] a 3 mm pres -->
+    <xacro:property name="wheelbase" value="0.425" />        <!-- [DS] 425 mm ; visuels seulement (voir roues visuelles) -->
+
+    <!-- Maillages visuels (modele Blender, exporte en OBJ dans le repere
+         base_link : axe des roues a z = 0, avant vers +X, fond du chassis
+         a -chassis_drop, haut a chassis_top). file:// + $(find) est resolu
+         a la fois par RViz2 et par Gazebo Harmonic (package:// ne l'est
+         pas toujours cote Gazebo). -->
+    <xacro:property name="mesh_dir" value="file://$(find seekur_driver)/description/meshes" />
 
     <!-- Mat de camera. Le top du chassis est a (base_height - chassis_drop)
          dans base_link, soit 0.291 m ; la camera se deduit de la hauteur du
@@ -110,12 +119,14 @@
          Le chassis lui-meme descend de chassis_drop sous cette origine, d'ou
          le decalage -chassis_drop applique aux trois origines ci-dessous. -->
     <link name="base_link">
+        <!-- Visuel : maillage deja exprime dans le repere base_link, donc
+             origine nulle. PAS de <material> : il remplacerait les couleurs
+             du .mtl par une teinte unie (RViz2 et Gazebo). -->
         <visual>
             <geometry>
-                <box size="${base_length} ${base_width} ${base_height}" />
+                <mesh filename="${mesh_dir}/seekurjr_chassis.obj" />
             </geometry>
-            <origin xyz="0 0 ${base_height / 2.0 - chassis_drop}" rpy="0 0 0" />
-            <material name="robot_material"/>
+            <origin xyz="0 0 0" rpy="0 0 0" />
         </visual>
         <collision>
             <geometry>
@@ -127,14 +138,10 @@
                           o_xyz="0 0 ${base_height / 2.0 - chassis_drop}" o_rpy="0 0 0" />
     </link>
 
+    <!-- Roue motrice right : PHYSIQUE SEULEMENT (collision + inertie).
+         Pas de visuel : ce sont les 4 roues visuelles, aux positions
+         reelles, qui s'affichent (voir plus bas). -->
     <link name="right_wheel_link">
-        <visual>
-            <geometry>
-                <cylinder radius="${wheel_radius}" length="${wheel_length}" />
-            </geometry>
-            <origin xyz="0 0 0" rpy="${pi / 2.0} 0 0" />
-            <material name="black" />
-        </visual>
         <collision>
             <geometry>
                 <cylinder radius="${wheel_radius}" length="${wheel_length}" />
@@ -145,14 +152,10 @@
                                o_xyz="0 0 0" o_rpy="${pi / 2.0} 0 0" />
     </link>
 
+    <!-- Roue motrice left : PHYSIQUE SEULEMENT (collision + inertie).
+         Pas de visuel : ce sont les 4 roues visuelles, aux positions
+         reelles, qui s'affichent (voir plus bas). -->
     <link name="left_wheel_link">
-        <visual>
-            <geometry>
-                <cylinder radius="${wheel_radius}" length="${wheel_length}" />
-            </geometry>
-            <origin xyz="0 0 0" rpy="${pi / 2.0} 0 0" />
-            <material name="black" />
-        </visual>
         <collision>
             <geometry>
                 <cylinder radius="${wheel_radius}" length="${wheel_length}" />
@@ -163,14 +166,10 @@
                                o_xyz="0 0 0" o_rpy="${pi / 2.0} 0 0" />
     </link>
 
+    <!-- Roulette : PHYSIQUE SEULEMENT (absente du vrai SeekurJR, gardee
+         pour l'equilibre Gazebo du modele a 2 roues). Pas de visuel : elle
+         apparaissait sous le chassis maille. -->
     <link name="caster_wheel_link">
-        <visual>
-            <geometry>
-                <sphere radius="${wheel_radius / 2.0}" />
-            </geometry>
-            <origin xyz="0 0 0" rpy="0 0 0" />
-            <material name="black" />
-        </visual>
         <collision>
             <geometry>
                 <sphere radius="${wheel_radius / 2.0}" />
@@ -181,6 +180,55 @@
                              o_xyz="0 0 0" o_rpy="0 0 0" />
     </link>
 
+    <!-- ================================================================
+         Roues VISUELLES : les 4 roues du vrai SeekurJR, a leurs positions
+         reelles (x = +/- wheelbase/2, y = +/- wheel_separation/2).
+         - Aucune collision : la physique reste portee par les 2 roues
+           motrices + la roulette (jalons v6 a v9 inchanges).
+         - Joint continuous avec <mimic> sur la roue motrice du meme cote :
+           robot_state_publisher calcule leur angle a partir de
+           /joint_states, donc elles tournent dans RViz des que les 2 joints
+           moteurs sont publies (Gazebo en sim ; driver option B en reel).
+         - Inertie minuscule mais non nulle : Gazebo ignore un link sans
+           inertie relie par un joint mobile.
+         - Gazebo (DART) ne supporte pas les contraintes mimic : il affiche
+           une fois "[Err] ... does not support mimic constraints" au
+           demarrage. ATTENDU ET SANS EFFET : dans Gazebo, ces roues sont
+           entrainees par le plugin DiffDrive (joints ajoutes a sa liste) ;
+           dans RViz, par robot_state_publisher via le mimic.
+         - yaw : le maillage de roue n'est pas symetrique (moyeu/axe d'un
+           cote). pi a GAUCHE, 0 a DROITE : l'axe du moyeu pointe vers
+           l'interieur, cote chassis (valide visuellement dans RViz).
+         ================================================================ -->
+    <xacro:macro name="visual_wheel" params="name x y yaw mimic_joint">
+        <link name="${name}_wheel_visual_link">
+            <visual>
+                <geometry>
+                    <mesh filename="${mesh_dir}/seekurjr_wheel.obj" />
+                </geometry>
+                <origin xyz="0 0 0" rpy="0 0 ${yaw}" />
+            </visual>
+            <xacro:cylinder_inertia m="0.01" r="${wheel_radius}" l="${wheel_length}"
+                                   o_xyz="0 0 0" o_rpy="${pi / 2.0} 0 0" />
+        </link>
+        <joint name="${name}_wheel_visual_joint" type="continuous">
+            <parent link="base_link" />
+            <child link="${name}_wheel_visual_link" />
+            <origin xyz="${x} ${y} 0" rpy="0 0 0" />
+            <axis xyz="0 1 0" />
+            <mimic joint="${mimic_joint}" multiplier="1.0" offset="0.0" />
+        </joint>
+    </xacro:macro>
+
+    <xacro:visual_wheel name="front_left"  x="${wheelbase / 2.0}"  y="${wheel_separation / 2.0}"
+                        yaw="${pi}" mimic_joint="base_left_wheel_joint" />
+    <xacro:visual_wheel name="rear_left"   x="${-wheelbase / 2.0}" y="${wheel_separation / 2.0}"
+                        yaw="${pi}" mimic_joint="base_left_wheel_joint" />
+    <xacro:visual_wheel name="front_right" x="${wheelbase / 2.0}"  y="${-wheel_separation / 2.0}"
+                        yaw="0"     mimic_joint="base_right_wheel_joint" />
+    <xacro:visual_wheel name="rear_right"  x="${-wheelbase / 2.0}" y="${-wheel_separation / 2.0}"
+                        yaw="0"     mimic_joint="base_right_wheel_joint" />
+
     <!-- LiDAR Link -->
     <link name="laser_frame">
         <visual>
@@ -188,7 +236,7 @@
                 <cylinder radius="0.05" length="0.07" />
             </geometry>
             <origin xyz="0 0 0" rpy="0 0 0" />
-            <material name="blue" />
+            <material name="grey" />
         </visual>
         <collision>
             <geometry>
@@ -373,8 +421,18 @@
 
     <gazebo>
         <plugin filename="libgz-sim-diff-drive-system.so" name="gz::sim::systems::DiffDrive">
+            <!-- Roues motrices physiques : TOUJOURS EN PREMIER. L'odometrie
+                 du plugin est calculee sur le premier joint de chaque cote. -->
             <left_joint>base_left_wheel_joint</left_joint>
             <right_joint>base_right_wheel_joint</right_joint>
+            <!-- Roues VISUELLES (sans collision) : pilotees a la meme vitesse
+                 uniquement pour qu'elles tournent dans la fenetre Gazebo, ou
+                 le mimic n'est pas supporte. Aucun effet physique (pas de
+                 contact, inertie 10 g). RViz, lui, les anime via le mimic. -->
+            <left_joint>front_left_wheel_visual_joint</left_joint>
+            <left_joint>rear_left_wheel_visual_joint</left_joint>
+            <right_joint>front_right_wheel_visual_joint</right_joint>
+            <right_joint>rear_right_wheel_visual_joint</right_joint>
             <!-- Doivent rester coherents avec les proprietes xacro en tete
                  de fichier. Gazebo ne lit pas les ${} ici, d'ou la
                  duplication en dur des valeurs. -->
@@ -547,17 +605,8 @@
     </gazebo>
 
     <!-- Propriétés Gazebo -->
-    <gazebo reference="base_link">
-       <material>Gazebo/Grey</material>
-    </gazebo>
-
-    <gazebo reference="right_wheel_link">
-        <material>Gazebo/Black</material>
-    </gazebo>
-
-    <gazebo reference="left_wheel_link">
-        <material>Gazebo/Black</material>
-    </gazebo>
+    <!-- base_link et roues : plus de <material> Gazebo, les couleurs
+         viennent des .mtl des maillages. -->
 
     <gazebo reference="caster_wheel_link">
         <material>Gazebo/Black</material>
@@ -566,7 +615,7 @@
     </gazebo>
 
     <gazebo reference="laser_frame">
-        <material>Gazebo/Blue</material>
+        <material>Gazebo/Grey</material>
     </gazebo>
 
     <gazebo reference="camera_mast_link">
