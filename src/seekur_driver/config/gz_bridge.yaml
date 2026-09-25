@@ -116,11 +116,15 @@
   direction: GZ_TO_ROS
 
 # --- Point cloud (depth reprojete + couleur par point) -----------------------
-- ros_topic_name: "/camera/depth/color/points"
-  gz_topic_name: "/camera/points"
-  ros_type_name: "sensor_msgs/msg/PointCloud2"
-  gz_type_name: "gz.msgs.PointCloudPacked"
-  direction: GZ_TO_ROS
+# --- Point cloud : RETIRE (2026-09) ------------------------------------------
+# Le nuage Gazebo est en convention capteur (X avant) mais etiquete
+# camera_optical_frame (Z avant) -> affiche couche dans RViz.
+# Reconstruit par depth_image_proc dans sim.launch.py (meme topic de sortie).
+# - ros_topic_name: "/camera/depth/color/points"
+#   gz_topic_name: "/camera/points"
+#   ros_type_name: "sensor_msgs/msg/PointCloud2"
+#   gz_type_name: "gz.msgs.PointCloudPacked"
+#   direction: GZ_TO_ROS
 
 # --- Camera info (intrinseques : fx, fy, cx, cy, distortion) -----------------
 # Gazebo publie un camera_info commun ; on l'expose comme celui de la RGB

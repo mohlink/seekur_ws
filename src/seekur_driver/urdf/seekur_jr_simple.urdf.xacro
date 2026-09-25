@@ -515,10 +515,10 @@
             <ray>
                 <scan>
                     <horizontal>
-                        <samples>541</samples>  <!-- 540 -> 541 (270° / 0.5° + 1) -->
+                        <samples>377</samples>  <!-- anciennes valeurs  540 -> 541 (270° / 0.5° + 1) -->
                         <resolution>1</resolution>
-                        <min_angle>-2.356</min_angle>
-                        <max_angle>2.356</max_angle>
+                        <min_angle>-1.6406</min_angle>  <!-- anciennes valeurs  -2.356 -->
+                        <max_angle>1.6406</max_angle>   <!-- anciennes valeurs 2.356 -->
                     </horizontal>
                 </scan>
                 <range>
@@ -615,10 +615,20 @@
                     <height>480</height>
                     <format>R8G8B8</format>
                 </image>
+
+                <!-- Image COULEUR : pas de limite pratique, comme la vraie D455 -->
                 <clip>
-                    <near>0.6</near>
-                    <far>6.0</far>
+                    <near>0.05</near>
+                    <far>50.0</far>
                 </clip>
+                <!-- PROFONDEUR : plage fiable de la D455 (0.6 - 6 m) -->
+                <depth_camera>
+                    <clip>
+                        <near>0.6</near>
+                        <far>6.0</far>
+                    </clip>
+                </depth_camera>
+
                 <noise>
                     <type>gaussian</type>
                     <mean>0.0</mean>

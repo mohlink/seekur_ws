@@ -32,6 +32,7 @@ Usage :
 
   # Changer de monde :
   ros2 launch seekur_driver sim.launch.py world:=mine_gallery.sdf
+  ros2 launch seekur_driver sim.launch.py world:=mine_polycam.sdf
 
   # Sans RViz (utile en CI ou pour tester juste la chaine data) :
   ros2 launch seekur_driver sim.launch.py rviz:=false
@@ -41,14 +42,15 @@ Usage :
 """
 
 from launch import LaunchDescription
-from launch_ros.actions import Node
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
+from launch_ros.actions import Node, ComposableNodeContainer
+from launch_ros.descriptions import ComposableNode
+from launch.actions import (DeclareLaunchArgument, IncludeLaunchDescription,
+                            TimerAction, AppendEnvironmentVariable)
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.parameter_descriptions import ParameterValue
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction, AppendEnvironmentVariable
 
 MODEL_NAME = 'seekur_jr'
 
@@ -81,6 +83,9 @@ def generate_launch_description():
 
     return LaunchDescription([
 
+        # --- Modeles des mondes (model://mine_scan, ...) ---------------------
+        # DOIT rester la premiere action : Gazebo lit GZ_SIM_RESOURCE_PATH
+        # au demarrage. Sans effet sur les mondes sans model://.
         AppendEnvironmentVariable(
             'GZ_SIM_RESOURCE_PATH',
             PathJoinSubstitution([pkg_share, 'worlds', 'models']),
@@ -198,6 +203,37 @@ def generate_launch_description():
                     output='screen'
                 ),
             ]
+        ),
+
+        # --- Nuage de points de la camera (depth_image_proc) ----------------
+        # Le nuage publie par Gazebo (/camera/points) est dans la convention
+        # CAPTEUR (X avant, Z haut) mais porte le frame_id OPTIQUE du capteur
+        # (camera_optical_frame, Z avant) -> affiche couche/tourne dans RViz.
+        # On le reconstruit donc depuis image couleur + profondeur +
+        # camera_info, directement dans le repere optique, comme le fait le
+        # vrai driver RealSense. Entree bridge /camera/points retiree.
+        # Topics de sortie identiques : /camera/depth/color/points.
+        ComposableNodeContainer(
+            name='camera_pointcloud_container',
+            namespace='',
+            package='rclcpp_components',
+            executable='component_container',
+            composable_node_descriptions=[
+                ComposableNode(
+                    package='depth_image_proc',
+                    plugin='depth_image_proc::PointCloudXyzrgbNode',
+                    name='camera_pointcloud',
+                    parameters=[{'use_sim_time': use_sim_time}],
+                    remappings=[
+                        ('rgb/image_rect_color', '/camera/color/image_raw'),
+                        ('rgb/camera_info', '/camera/color/camera_info'),
+                        ('depth_registered/image_rect', '/camera/depth/image_rect_raw'),
+                        ('points', '/camera/depth/color/points'),
+                    ],
+                ),
+            ],
+            parameters=[{'use_sim_time': use_sim_time}],
+            output='screen',
         ),
 
         # --- RViz2 -----------------------------------------------------------
