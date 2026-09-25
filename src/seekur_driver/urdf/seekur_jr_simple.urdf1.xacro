@@ -20,7 +20,7 @@
                           494 = hauteur totale du robot
                           425 = empattement (axe avant - axe arriere)
                                 (utilise UNIQUEMENT pour placer les 4 roues
-                                visuelles ; la physique reste a 2 roues + 2 roulettes)
+                                visuelles ; la physique reste a 2 roues + roulette)
 
          ATTENTION - deux erreurs corrigees par rapport aux versions
          precedentes de ce fichier :
@@ -42,7 +42,6 @@
     <xacro:property name="wheel_radius" value="0.203" />     <!-- [DS] 16" = 406 mm diam ; confirme [LAB] apres regonflage (20 cm) -->
     <xacro:property name="wheel_length" value="0.165" />     <!-- [DS] 6.50" de section = 165 mm -->
     <xacro:property name="wheel_separation" value="0.663" /> <!-- [DS] 663 mm ; confirme [LAB] a 3 mm pres -->
-    <xacro:property name="lidar_pitch_deg" value="5" />      <!-- [SIM] inclinaison LiDAR vers le haut -->
     <xacro:property name="wheelbase" value="0.425" />        <!-- [DS] 425 mm ; visuels seulement (voir roues visuelles) -->
 
     <!-- Maillages visuels (modele Blender, exporte en OBJ dans le repere
@@ -68,12 +67,7 @@
     <!-- Masses (datasheet : robot complet 77 kg) -->
     <xacro:property name="base_mass" value="60.0" />         <!-- chassis + electronique -->
     <xacro:property name="wheel_mass" value="8.0" />         <!-- 16" pneumatique ~8 kg piece -->
-    <xacro:property name="caster_mass" value="0.5" />        <!-- par roulette ; non present sur vrai SeekurJR, garde pour stabilite Gazebo -->
-    <xacro:property name="caster_radius" value="${wheel_radius / 2.0}" />
-    <xacro:property name="caster_x" value="${base_length / 3.0}" />  <!-- roulettes a +/- 0.35 m -->
-    <xacro:property name="caster_gap" value="0.02" />       <!-- 2 cm au-dessus du sol (bosses de la mine) : les 2 roues motrices
-                                                                  gardent toujours le contact (4 appuis en
-                                                                  losange = hyperstatique sinon) -->
+    <xacro:property name="caster_mass" value="0.5" />        <!-- non present sur vrai SeekurJR, garde pour stabilite Gazebo -->
 
     <!-- Couleurs -->
     <material name="blue"><color rgba="0 0 0.8 1" /></material>
@@ -172,43 +166,25 @@
                                o_xyz="0 0 0" o_rpy="${pi / 2.0} 0 0" />
     </link>
 
-    <!-- Roulettes AVANT et ARRIERE : PHYSIQUE SEULEMENT (absentes du vrai
-         SeekurJR). Elles equilibrent le modele diff-drive dont les roues
-         motrices sont au centre (x = 0). Spheres quasi sans frottement,
-         surelevees de caster_gap : le robot bascule d'au plus ~3.3 deg (2 cm)
-         sur l'une d'elles, les roues motrices ne decollent jamais.
-         Pas de visuel (masquees par le chassis maille). -->
-    <xacro:macro name="caster" params="name x">
-        <link name="${name}_caster_link">
-            <collision>
-                <geometry>
-                    <sphere radius="${caster_radius}" />
-                </geometry>
-                <origin xyz="0 0 0" rpy="0 0 0" />
-            </collision>
-            <xacro:sphere_inertia m="${caster_mass}" r="${caster_radius}"
-                                 o_xyz="0 0 0" o_rpy="0 0 0" />
-        </link>
-        <joint name="base_${name}_caster_joint" type="fixed">
-            <parent link="base_link" />
-            <child link="${name}_caster_link" />
-            <!-- bas de la sphere a caster_gap du sol (sol a z = -wheel_radius) -->
-            <origin xyz="${x} 0 ${-wheel_radius + caster_radius + caster_gap}" rpy="0 0 0" />
-        </joint>
-        <gazebo reference="${name}_caster_link">
-            <mu1 value="0.001" />
-            <mu2 value="0.001" />
-        </gazebo>
-    </xacro:macro>
-
-    <xacro:caster name="front" x="${caster_x}" />
-    <xacro:caster name="rear"  x="${-caster_x}" />
+    <!-- Roulette : PHYSIQUE SEULEMENT (absente du vrai SeekurJR, gardee
+         pour l'equilibre Gazebo du modele a 2 roues). Pas de visuel : elle
+         apparaissait sous le chassis maille. -->
+    <link name="caster_wheel_link">
+        <collision>
+            <geometry>
+                <sphere radius="${wheel_radius / 2.0}" />
+            </geometry>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+        </collision>
+        <xacro:sphere_inertia m="${caster_mass}" r="${wheel_radius / 2.0}"
+                             o_xyz="0 0 0" o_rpy="0 0 0" />
+    </link>
 
     <!-- ================================================================
          Roues VISUELLES : les 4 roues du vrai SeekurJR, a leurs positions
          reelles (x = +/- wheelbase/2, y = +/- wheel_separation/2).
          - Aucune collision : la physique reste portee par les 2 roues
-           motrices centrales + les 2 roulettes.
+           motrices + la roulette (jalons v6 a v9 inchanges).
          - Joint continuous avec <mimic> sur la roue motrice du meme cote :
            robot_state_publisher calcule leur angle a partir de
            /joint_states, donc elles tournent dans RViz des que les 2 joints
@@ -347,31 +323,32 @@
          Y : depuis wheel_separation [DS] directement. NE PAS recalculer
              depuis base_width + wheel_length : le chassis a un gap de
              degagement avec le pneu, les deux grandeurs sont independantes.
-         X : 0. Le vrai robot a 4 roues en skid-steer et pivote au milieu
-             de son empattement (x = 0). Ce modele le represente par un
-             diff-drive EQUIVALENT : 2 roues motrices au centre + roulettes
-             avant/arriere. Meme centre de rotation que le vrai robot, sans
-             les artefacts du skid-steer sous Gazebo (glissement lateral,
-             odometrie de cap faussee, reglage de frottement).
+         X : -base_length/4. Le vrai robot a 4 roues en skid-steer ; ce
+             modele en a 2 + une roulette avant, donc l'empattement reel
+             (425 mm [DS]) ne s'applique pas ici et n'est pas modelise.
 
-         HISTORIQUE : jusqu'au 2026-09-24, roues a x = -base_length/4
-         (-0.263) + 1 roulette avant -> pivot decale de 26 cm (ancienne
-         "LIMITE CONNUE"). Les jalons v6 a v9 ont ete valides avec cette
-         geometrie ; a re-valider avec la nouvelle.
-
-         Les 4 roues VISIBLES sont des links separes (voir plus haut),
-         aux positions reelles, animes par mimic. -->
+         LIMITE CONNUE - centre de rotation.
+         Le vrai SeekurJR pivote au milieu de son empattement (x = 0).
+         Ce modele pivote autour de l'axe de ses deux roues (x = -0.263),
+         donc en rotation pure il decrit un arc de 26 cm de rayon au lieu
+         de tourner sur place. Biais systematique, borne, connu.
+         Correction possible le jour ou une rotation reelle est disponible
+         pour comparaison : roues a x = 0 + une seconde roulette a
+         l'arriere pour l'equilibre. Non fait pour l'instant : ce modele
+         est stable dans Gazebo et a servi de base aux jalons v6 a v9,
+         toucher a l'equilibre introduirait un risque non borne pour
+         corriger une erreur qui l'est. -->
     <joint name="base_right_wheel_joint" type="continuous">
         <parent link="base_link" />
         <child link="right_wheel_link" />
-        <origin xyz="0 ${-wheel_separation / 2.0} 0" rpy="0 0 0" />
+        <origin xyz="${-base_length / 4.0} ${-wheel_separation / 2.0} 0" rpy="0 0 0" />
         <axis xyz="0 1 0" />
     </joint>
 
     <joint name="base_left_wheel_joint" type="continuous">
         <parent link="base_link" />
         <child link="left_wheel_link" />
-        <origin xyz="0 ${wheel_separation / 2.0} 0" rpy="0 0 0" />
+        <origin xyz="${-base_length / 4.0} ${wheel_separation / 2.0} 0" rpy="0 0 0" />
         <axis xyz="0 1 0" />
     </joint>
 
@@ -389,6 +366,12 @@
         <origin xyz="0 0 ${-chassis_drop}" rpy="0 0 0" />
     </joint>
 
+    <joint name="base_caster_wheel_joint" type="fixed">
+        <parent link="base_link" />
+        <child link="caster_wheel_link" />
+        <origin xyz="${base_length / 3.0} 0 ${-wheel_radius / 2.0}" rpy="0 0 0" />
+    </joint>
+
     <!-- LiDAR SICK, monte en saillie a l'AVANT sur support en equerre.
          z : [LAB] 39 cm du sol apres regonflage -> 0.39 - 0.203 = 0.187
          x : [EST] le boitier est sensiblement a l'aplomb de la bordure
@@ -404,14 +387,7 @@
     <joint name="laser_joint" type="fixed">
         <parent link="base_link" />
         <child link="laser_frame" />
-        <!-- Incline de lidar_pitch_deg vers le HAUT (tangage negatif :
-             en ROS, +pitch fait plonger l'axe X). Evite que le faisceau
-             touche le sol : basculement sur les roulettes (~3.3 deg avec
-             caster_gap 2 cm), bosses et pentes de la mine. Hauteur du
-             faisceau : 0.39 + d*tan(5 deg) -> 0.65 m a 3 m, 2.1 m a 20 m.
-             [SIM] Le support reel doit recevoir la meme inclinaison
-             (cale) ; valeur a remplacer par l'angle mesure. -->
-        <origin xyz="0.535 0 0.187" rpy="0 ${-radians(lidar_pitch_deg)} 0" />
+        <origin xyz="0.535 0 0.187" rpy="0 0 0" />
     </joint>
 
     <!-- Mat : pose sur le top du chassis, monte de camera_mast_height.
@@ -631,6 +607,12 @@
     <!-- Propriétés Gazebo -->
     <!-- base_link et roues : plus de <material> Gazebo, les couleurs
          viennent des .mtl des maillages. -->
+
+    <gazebo reference="caster_wheel_link">
+        <material>Gazebo/Black</material>
+        <mu1 value="0.001" />
+        <mu2 value="0.001" />
+    </gazebo>
 
     <gazebo reference="laser_frame">
         <material>Gazebo/Grey</material>
