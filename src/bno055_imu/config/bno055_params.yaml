@@ -1,0 +1,27 @@
+# Paramètres du nœud bno055_imu (package bno055_imu)
+# La clé racine doit correspondre au nom RÉEL du nœud (name= dans le launch).
+bno055_imu:
+  ros__parameters:
+    # Banc : la Nano seule -> /dev/ttyUSB0.
+    # Robot réel : le PL2303 du SeekurJR occupe /dev/ttyUSB0 -> utiliser /dev/imu (règle udev à venir).
+    serial_port: /dev/ttyUSB0
+    baud: 115200
+    frame_id: imu_link
+    expected_rate_hz: 100.0
+
+    quat_norm_tolerance: 0.05   # rejette les quaternions nuls du démarrage
+    reconnect_period_s: 2.0
+    data_timeout_s: 1.0
+    diagnostics_rate_hz: 1.0
+
+    # Variances (diagonales) — estimées sur le banc 2026-09, à affiner
+    # Mode IMUPLUS : yaw relatif, variance plus large que roll/pitch
+    orientation_covariance_diag: [3.0e-4, 3.0e-4, 1.2e-3]      # ~1° / ~1° / ~2°
+    # Bruit gyro mesuré au repos ~2.7e-6 (rad/s)², gonflé x10
+    angular_velocity_covariance_diag: [3.0e-5, 3.0e-5, 3.0e-5]
+    linear_acceleration_covariance_diag: [1.0e-2, 1.0e-2, 1.0e-2]
+
+    # Correction accéléro optionnelle : a = (brut - bias) * scale
+    # Mesuré sur Z : biais ~ -0.29 m/s², échelle ~ 0.99 (non appliqué : accel non fusionnée)
+    accel_bias: [0.0, 0.0, 0.0]
+    accel_scale: [1.0, 1.0, 1.0]
