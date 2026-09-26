@@ -148,11 +148,17 @@ cd ~/yolo_ws && colcon build
 > réinstaller globalement, avec un risque d'obtenir une version CPU-only de
 > PyTorch.
 
-Vérification GPU :
+> **Premier lancement : environ 4 Go à télécharger.** `yolo_ros` exécute ses
+> nœuds avec `uv run` depuis le dossier installé : l'environnement d'exécution
+> est créé au premier `sim_yolo.launch.py` dans
+> `~/yolo_ws/install/yolo_ros/share/yolo_ros/.venv` (PyTorch, CUDA, Ultralytics).
+> Les lancements suivants démarrent directement.
+
+Vérification GPU (après un premier lancement) :
 
 ```bash
-~/yolo_ws/src/yolo_ros/.venv/bin/python -c "import torch; print(torch.cuda.is_available())"
-# doit afficher True
+~/yolo_ws/install/yolo_ros/share/yolo_ros/.venv/bin/python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
+# attendu : 2.13.0+cu130 True
 ```
 
 ---
@@ -353,6 +359,11 @@ sont en commentaire dans les fichiers concernés.
   Gazebo publie le depth en `32FC1` (mètres), `realsense2_camera` en `16UC1`
   (millimètres). Avec la valeur par défaut sur du depth Gazebo, toutes les
   détections se retrouvent à 3 mm de la caméra.
+- **`~/yolo_ws/install/` n'est pas un simple artefact de build.** Il contient
+  l'environnement d'exécution de `yolo_ros` (voir Installation). Le supprimer
+  lors d'un nettoyage disque force le retéléchargement d'environ 4 Go au
+  lancement suivant. Le `.venv` de `src/yolo_ros` créé par `uv sync` n'est pas
+  utilisé à l'exécution (vérifié : `sim_yolo` à 29,7 Hz sans lui).
 
 ---
 
