@@ -1,0 +1,36 @@
+# RealSense D435 avant (camera_front) - robot reel.
+#
+# Le nom et l'espace de noms sont des ARGUMENTS DE LANCEMENT, pas des parametres :
+#   ros2 launch realsense2_camera rs_launch.py camera_namespace:='' \
+#     camera_name:=camera_front config_file:=<chemin>/d435.yaml
+# -> topics /camera_front/... et repere camera_front_link, identiques a la sim.
+#
+# rs_launch.py ne transmet qu'une liste fixe d'arguments ; ce fichier passe
+# TOUTES ses cles au noeud (necessaire pour le filtre nuage ARM ci-dessous).
+
+serial_no: '244622072884'
+
+# USB 2 (cable actuel) : 640x480 a 15 i/s max pour couleur + profondeur.
+# Avec un cable USB 3 : passer a 848x480x30 (valeur de la sim).
+depth_module.depth_profile: 640x480x15
+rgb_camera.color_profile: 640x480x15
+
+enable_infra1: false
+enable_infra2: false
+enable_sync: true            # couleur et profondeur horodatees ensemble (RTAB-Map)
+
+# Profondeur recalee sur la couleur : lue par RTAB-Map et YOLO
+# (/camera_front/aligned_depth_to_color/image_raw).
+align_depth.enable: true
+
+# Nuage de points : sur ARM (Jetson), le filtre s'appelle pointcloud__neon_,
+# pas pointcloud. stream_filter 2 = texture couleur.
+pointcloud__neon_.enable: true
+pointcloud__neon_.stream_filter: 2
+
+publish_tf: true             # camera_front_link -> reperes optiques (usine)
+initial_reset: true          # reinitialise la camera au demarrage (etat propre)
+
+# A regler au lab : portee utile de la D435 (~3-4 m). La sim est encore
+# calibree D455 (clip 6 m).
+# clip_distance: 4.0
