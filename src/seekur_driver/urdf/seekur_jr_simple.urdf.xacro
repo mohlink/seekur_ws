@@ -270,12 +270,12 @@
     <!-- ================================================================
          Camera RealSense D455 : montee sur mat au-dessus du chassis.
          Convention frames RealSense/ROS :
-           - camera_link          : convention robot (X vers l'avant)
-           - camera_optical_frame : convention optique (Z vers la scene,
+           - camera_front_link          : convention robot (X vers l'avant)
+           - camera_front_optical_frame : convention optique (Z vers la scene,
                                     X droite, Y bas) - c'est ce frame_id
                                     que RTAB-Map, YOLO ROS, RViz attendent
                                     dans le header des images.
-         Le sensor Gazebo est declare sur camera_link (regarde vers +X du
+         Le sensor Gazebo est declare sur camera_front_link (regarde vers +X du
          link, donc vers l'avant du robot). Le gz_frame_id force le frame
          optique dans les messages ROS -> memes conventions que le vrai
          driver realsense2_camera.
@@ -284,8 +284,8 @@
          chassis et la camera. Purement cosmetique (sans lui la camera
          flotte en l'air dans RViz et Gazebo), mais il rend le modele
          lisible d'un coup d'oeil. Visual + inertie seulement, pas de
-         collision : meme convention que camera_link et imu_link. -->
-    <link name="camera_mast_link">
+         collision : meme convention que camera_front_link et imu_link. -->
+    <link name="camera_front_mast_link">
         <visual>
             <geometry>
                 <cylinder radius="${camera_mast_radius}" length="${camera_mast_height}" />
@@ -297,7 +297,7 @@
                                o_xyz="0 0 0" o_rpy="0 0 0" />
     </link>
 
-    <link name="camera_link">
+    <link name="camera_front_link">
         <visual>
             <!-- D455 : 124 x 26 x 29 mm approximatif (bandeau caviar) -->
             <geometry>
@@ -314,7 +314,7 @@
          RPY = (-pi/2, 0, -pi/2) fait que Z_optique aligne avec X_link,
          X_optique aligne avec -Y_link, Y_optique aligne avec -Z_link.
          C'est LA convention utilisee par tous les drivers de camera ROS. -->
-    <link name="camera_optical_frame" />
+    <link name="camera_front_optical_frame" />
 
     <!-- Joints -->
     <joint name="base_joint" type="fixed">
@@ -404,9 +404,9 @@
 
     <!-- Mat : pose sur le top du chassis, monte de camera_mast_height.
          Son origine est au milieu du cylindre, d'ou le /2. -->
-    <joint name="camera_mast_joint" type="fixed">
+    <joint name="camera_front_mast_joint" type="fixed">
         <parent link="base_link" />
-        <child link="camera_mast_link" />
+        <child link="camera_front_mast_link" />
         <origin xyz="${camera_x} 0 ${chassis_top + camera_mast_height / 2.0}" rpy="0 0 0" />
     </joint>
 
@@ -417,17 +417,17 @@
              -> chassis_top + camera_mast_height = 0.291 + 0.12 = 0.411
                 soit 0.614 m du sol
          y : suppose centree. A confirmer d'un coup d'oeil depuis le dessus. -->
-    <joint name="camera_joint" type="fixed">
+    <joint name="camera_front_joint" type="fixed">
         <parent link="base_link" />
-        <child link="camera_link" />
+        <child link="camera_front_link" />
         <origin xyz="${camera_x} 0 ${chassis_top + camera_mast_height}" rpy="0 0 0" />
     </joint>
 
     <!-- Joint optique : rotation qui aligne le repere optique standard
          (Z vers la scene) avec le repere robot (X vers la scene). -->
-    <joint name="camera_optical_joint" type="fixed">
-        <parent link="camera_link" />
-        <child link="camera_optical_frame" />
+    <joint name="camera_front_optical_joint" type="fixed">
+        <parent link="camera_front_link" />
+        <child link="camera_front_optical_frame" />
         <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}" />
     </joint>
 
@@ -566,15 +566,15 @@
              REQUIERT CycloneDDS - voir commentaire sur update_rate
            - Portee depth clip 0.6 - 6.0 m (spec D455)
 
-         gz_frame_id=camera_optical_frame -> les messages sortent avec le
+         gz_frame_id=camera_front_optical_frame -> les messages sortent avec le
          frame optique dans le header (RTAB-Map/YOLO/RViz OK). Le sensor
-         est physiquement attache a camera_link (X pointe vers la scene),
-         mais l'annotation ROS pointe vers camera_optical_frame. -->
-    <gazebo reference="camera_link">
+         est physiquement attache a camera_front_link (X pointe vers la scene),
+         mais l'annotation ROS pointe vers camera_front_optical_frame. -->
+    <gazebo reference="camera_front_link">
         <sensor name="camera_d455" type="rgbd_camera">
             <pose>0 0 0 0 0 0</pose>
-            <topic>camera</topic>
-            <gz_frame_id>camera_optical_frame</gz_frame_id>
+            <topic>camera_front</topic>
+            <gz_frame_id>camera_front_optical_frame</gz_frame_id>
             <!-- PREREQUIS CRITIQUE : CycloneDDS (RMW_IMPLEMENTATION=
                  rmw_cyclonedds_cpp). Avec FastDDS (defaut Jazzy), les
                  topics image/depth/pointcloud s'effondrent a 6-13 Hz avec
@@ -640,11 +640,11 @@
         <material>Gazebo/Grey</material>
     </gazebo>
 
-    <gazebo reference="camera_mast_link">
+    <gazebo reference="camera_front_mast_link">
         <material>Gazebo/Grey</material>
     </gazebo>
 
-    <gazebo reference="camera_link">
+    <gazebo reference="camera_front_link">
         <material>Gazebo/Black</material>
     </gazebo>
 </robot>

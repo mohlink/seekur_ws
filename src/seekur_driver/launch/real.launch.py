@@ -10,7 +10,7 @@ Pendant reel de sim.launch.py :
 
 CHAINE ACTIVE :
   robot_state_publisher (URDF calibre datasheet + lab)
-    -> TF base_footprint <-> base_link <-> roues, LiDAR, camera_link, IMU
+    -> TF base_footprint <-> base_link <-> roues, LiDAR, camera_front_link, IMU
   seekur_driver (serie 9600 baud, DTR/RTS)
     -> /odom + TF odom -> base_footprint (publish_tf: true, pas d'EKF ici)
     -> /battery_state, /diagnostics

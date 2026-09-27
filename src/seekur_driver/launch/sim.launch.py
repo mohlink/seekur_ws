@@ -206,13 +206,13 @@ def generate_launch_description():
         ),
 
         # --- Nuage de points de la camera (depth_image_proc) ----------------
-        # Le nuage publie par Gazebo (/camera/points) est dans la convention
+        # Le nuage publie par Gazebo (/camera_front/points) est dans la convention
         # CAPTEUR (X avant, Z haut) mais porte le frame_id OPTIQUE du capteur
-        # (camera_optical_frame, Z avant) -> affiche couche/tourne dans RViz.
+        # (camera_front_optical_frame, Z avant) -> affiche couche/tourne dans RViz.
         # On le reconstruit donc depuis image couleur + profondeur +
         # camera_info, directement dans le repere optique, comme le fait le
-        # vrai driver RealSense. Entree bridge /camera/points retiree.
-        # Topics de sortie identiques : /camera/depth/color/points.
+        # vrai driver RealSense. Entree bridge /camera_front/points retiree.
+        # Topics de sortie identiques : /camera_front/depth/color/points.
         ComposableNodeContainer(
             name='camera_pointcloud_container',
             namespace='',
@@ -225,10 +225,10 @@ def generate_launch_description():
                     name='camera_pointcloud',
                     parameters=[{'use_sim_time': use_sim_time}],
                     remappings=[
-                        ('rgb/image_rect_color', '/camera/color/image_raw'),
-                        ('rgb/camera_info', '/camera/color/camera_info'),
-                        ('depth_registered/image_rect', '/camera/depth/image_rect_raw'),
-                        ('points', '/camera/depth/color/points'),
+                        ('rgb/image_rect_color', '/camera_front/color/image_raw'),
+                        ('rgb/camera_info', '/camera_front/color/camera_info'),
+                        ('depth_registered/image_rect', '/camera_front/aligned_depth_to_color/image_raw'),
+                        ('points', '/camera_front/depth/color/points'),
                     ],
                 ),
             ],
