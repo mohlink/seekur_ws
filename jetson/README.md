@@ -100,6 +100,14 @@ cp ~/seekur_ws/jetson/config/cyclonedds.xml ~/
 cat ~/seekur_ws/jetson/config/bashrc_jetson.sh >> ~/.bashrc
 cp ~/seekur_ws/jetson/config/tmux.conf ~/.tmux.conf     # facultatif
 ```
+**Gros messages DDS** (nuage de points de la caméra, plusieurs Mo par message) :
+sans ce réglage, la mémoire tampon UDP par défaut d'Ubuntu (208 Ko) empêche le
+nuage d'arriver, sans aucun message d'erreur. `cyclonedds.xml` demande 10 Mo.
+
+```bash
+sudo cp ~/seekur_ws/jetson/config/99-robot-dds.conf /etc/sysctl.d/
+sudo sysctl --system | grep -E "rmem_max|ipfrag"
+```
 
 (La ligne `source ~/seekur_ws/install/setup.bash` du bloc échoue tant que le
 workspace n'est pas compilé à l'étape 10 : sans conséquence.)
@@ -275,6 +283,7 @@ ls -l /dev/imu
 | Installation de 660 paquets dont Gazebo | Métapaquets Nav2/RTAB-Map | Paquets individuels (§10) |
 | Aucun octet sur `/dev/imu` pendant 2 s | Chaque ouverture du port réinitialise le Nano (DTR) | Attendre quelques secondes |
 | `"` introuvable pour découper tmux | Clavier CA-FR | `tmux.conf` : Ctrl+b puis `-` |
+| Nuage de points RealSense jamais reçu, aucune erreur | Tampon UDP de 208 Ko, messages de plusieurs Mo | `99-robot-dds.conf` + `SocketReceiveBufferSize` (§5) |
 
 ## Points ouverts
 

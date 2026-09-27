@@ -13,5 +13,8 @@
         <NetworkInterface name="wlP1p1s0" priority="default" multicast="default"/>
       </Interfaces>
     </General>
+    <Internal>
+      <SocketReceiveBufferSize min="10MB"/>
+    </Internal>
   </Domain>
 </CycloneDDS>
