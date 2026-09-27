@@ -1,7 +1,7 @@
 # RealSense D435 avant (camera_front) - robot reel.
 #
 # Le nom et l'espace de noms sont des ARGUMENTS DE LANCEMENT, pas des parametres :
-#   ros2 launch realsense2_camera rs_launch.py camera_namespace:='' \
+#   ros2 launch realsense2_camera rs_launch.py camera_namespace:=/ \
 #     camera_name:=camera_front config_file:=<chemin>/d435.yaml
 # -> topics /camera_front/... et repere camera_front_link, identiques a la sim.
 #
