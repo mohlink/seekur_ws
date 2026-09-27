@@ -4,7 +4,8 @@
 seekur_interactive_serial.py — Contrôleur interactif SeekurJR (port série)
 
 Version pour le VRAI ROBOT. Se connecte via un port série physique
-(/dev/ttyUSB0 typiquement, 9600 baud, avec DTR/RTS activés).
+(/dev/seekur, 9600 baud, DTR/RTS fixés à False juste après l'ouverture :
+pyserial les active par défaut, et le robot ne répond alors pas).
 
 Envoie les commandes SeekurOS interactivement (VEL/RVEL bidirectionnels,
 SYNC/OPEN/ENABLE, watchdog PULSE automatique). Utile pour reproduire un
