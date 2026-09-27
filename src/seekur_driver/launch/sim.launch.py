@@ -15,7 +15,7 @@ de launch qui se propage a TOUS les nodes.
 
 Le jour du vrai robot :
   - ce launch ne sert pas (Gazebo/simulateur/bridge disparaissent)
-  - on lance uniquement le driver avec serial_port:=/dev/ttyUSB0 et
+  - on lance uniquement le driver avec serial_port:=/dev/seekur et
     use_sim_time:=false, plus le driver LiDAR reel separement
   - nav2, robot_state_publisher, RViz2 sont dans un launch separe
     (celui-la a venir en N4-N5) qui marche a l'identique sim/reel

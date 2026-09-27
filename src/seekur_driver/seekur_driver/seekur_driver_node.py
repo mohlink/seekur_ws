@@ -7,7 +7,7 @@ VERSION N2 (2026-08) - Modifications par rapport à la version initiale :
 
 1. SerialTCPAdapter ajouté (porté depuis seekur_interactive1_tcp.py) :
    le paramètre serial_port accepte désormais 'tcp://host:port' pour se
-   connecter au simulateur de protocole, ou '/dev/ttyUSBx' pour le vrai
+   connecter au simulateur de protocole, ou '/dev/seekur' pour le vrai
    robot. C'est LE point de bascule sim <-> réel : un seul paramètre.
 
 2. base_frame par défaut : 'base_link' -> 'base_footprint'.
@@ -188,7 +188,7 @@ class SeekurDriverNode(Node):
         self.declare_parameters(
             namespace='',
             parameters=[
-                # 'tcp://localhost:9999' = simulateur | '/dev/ttyUSB0' = vrai robot
+                # 'tcp://localhost:9999' = simulateur | '/dev/seekur' = vrai robot (lien udev)
                 ('serial_port', 'tcp://localhost:9999'),
                 ('baud_rate', 9600),
                 ('timeout', 0.5),

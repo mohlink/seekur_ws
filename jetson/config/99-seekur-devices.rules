@@ -1,0 +1,14 @@
+# Destination : /etc/udev/rules.d/99-seekur-devices.rules
+# Liens stables, indépendants de l'ordre de branchement (ttyUSB0/1 changent).
+# ID_MM_DEVICE_IGNORE : empêche ModemManager d'envoyer des commandes AT sur
+# ces ports (elles arriveraient sur le port HOST de SeekurOS pendant la SYNC).
+#
+# Prérequis Jetson JP7 : modules ch341 et pl2303 compilés (scripts/build_usb_serial.sh),
+# utilisateur dans le groupe dialout.
+
+# SeekurJR : port HOST SeekurOS via adaptateur PL2303
+SUBSYSTEM=="tty", ATTRS{idVendor}=="067b", ATTRS{idProduct}=="2303", SYMLINK+="seekur", MODE="0660", GROUP="dialout", ENV{ID_MM_DEVICE_IGNORE}="1"
+# IMU BNO055 via Arduino Nano (CH340 intégré)
+# Limite : vise TOUT CH340. Un second CH340 branché se disputerait /dev/imu
+# (distinguer alors par port physique avec KERNELS==, les clones n'ont pas de n° de série).
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="imu", MODE="0660", GROUP="dialout", ENV{ID_MM_DEVICE_IGNORE}="1"

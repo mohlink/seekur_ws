@@ -6,7 +6,7 @@ Pendant reel de sim.launch.py :
   - PAS de Gazebo
   - PAS de simulateur SeekurOS TCP
   - PAS de bridge Gazebo <-> ROS2
-  - Driver seekur en SERIE sur /dev/ttyUSB0 au lieu de tcp://localhost:9999
+  - Driver seekur en SERIE sur /dev/seekur au lieu de tcp://localhost:9999
 
 CHAINE ACTIVE :
   robot_state_publisher (URDF calibre datasheet + lab)
@@ -32,7 +32,7 @@ PREREQUIS PHYSIQUES :
     autoriser le mouvement. MOTORS enfonce = arret d'urgence, aucune
     commande moteur ne passe (le driver et l'odometrie fonctionnent quand
     meme, seul le mouvement est bloque).
-  - Cable serie PL2303 branche, /dev/ttyUSB0 present, utilisateur dans le
+  - Cable serie PL2303 branche, /dev/seekur present (regle udev 99-seekur-devices.rules), utilisateur dans le
     groupe dialout (verifiable : groups | grep dialout).
   - Manette de jeu branchee et reconnue (verifiable : ls /dev/input/js*).
     La manette maintient un DEAD-MAN : sans bouton enfonce, aucune commande

@@ -1,0 +1,6 @@
+# Destination : /etc/udev/rules.d/50-usb-no-autosuspend.rules
+# Robot : désactive l'autosuspend USB pour éviter les déconnexions série/caméra
+# (PL2303 du SeekurJR, CH340 de l'IMU, RealSense D455).
+# Les contrôleurs racine xHCI (usb1, usb2) peuvent rester en "auto" : ils ne
+# s'endorment que si tout ce qui est en dessous dort.
+ACTION=="add", SUBSYSTEM=="usb", TEST=="power/control", ATTR{power/control}="on"

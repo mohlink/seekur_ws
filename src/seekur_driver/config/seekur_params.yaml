@@ -1,7 +1,7 @@
 seekur_driver:
   ros__parameters:
     # Communication série
-    serial_port: "/dev/ttyUSB0"
+    serial_port: "/dev/seekur"
     baud_rate: 9600
     timeout: 0.5
     

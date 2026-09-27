@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  CycloneDDS pour la Jetson du SeekurJR.
+  DDS est épinglé sur le WiFi (wlP1p1s0) : l'Ethernet (enP8p1s0) est réservé
+  au LiDAR SICK LMS111 (IP fixe 192.168.0.x). Sans épinglage, Cyclone choisit
+  lui-même une interface, et ce choix peut changer d'un démarrage à l'autre.
+  Utilisé via : export CYCLONEDDS_URI=file://$HOME/cyclonedds.xml
+-->
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain id="any">
+    <General>
+      <Interfaces>
+        <NetworkInterface name="wlP1p1s0" priority="default" multicast="default"/>
+      </Interfaces>
+    </General>
+  </Domain>
+</CycloneDDS>

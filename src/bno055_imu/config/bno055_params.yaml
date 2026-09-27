@@ -2,9 +2,9 @@
 # La clé racine doit correspondre au nom RÉEL du nœud (name= dans le launch).
 bno055_imu:
   ros__parameters:
-    # Banc : la Nano seule -> /dev/ttyUSB0.
-    # Robot réel : le PL2303 du SeekurJR occupe /dev/ttyUSB0 -> utiliser /dev/imu (règle udev à venir).
-    serial_port: /dev/ttyUSB0
+    # /dev/imu : lien udev stable (CH340 1a86:7523, jetson/config/99-seekur-devices.rules).
+    # Robuste à l'ordre de branchement : le PL2303 du robot prend souvent ttyUSB0.
+    serial_port: /dev/imu
     baud: 115200
     frame_id: imu_link
     expected_rate_hz: 100.0

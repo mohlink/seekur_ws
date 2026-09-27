@@ -38,7 +38,7 @@ class Bno055SerialNode(Node):
     def __init__(self):
         super().__init__('bno055_imu')
 
-        self.declare_parameter('serial_port', '/dev/ttyUSB0')
+        self.declare_parameter('serial_port', '/dev/imu')
         self.declare_parameter('baud', 115200)
         self.declare_parameter('frame_id', 'imu_link')
         self.declare_parameter('expected_rate_hz', 100.0)
