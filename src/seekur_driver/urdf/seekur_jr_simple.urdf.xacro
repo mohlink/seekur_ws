@@ -166,9 +166,13 @@
                                o_xyz="0 0 0" o_rpy="${pi / 2.0} 0 0" />
     </link>
 
-    <!-- Roulette : PHYSIQUE SEULEMENT (absente du vrai SeekurJR, gardee
-         pour l'equilibre Gazebo du modele a 2 roues). Pas de visuel : elle
-         apparaissait sous le chassis maille. -->
+    <!-- Roulette ARRIERE : PHYSIQUE SEULEMENT (absente du vrai SeekurJR,
+         gardee pour l'equilibre Gazebo du modele a 2 roues). Placee a
+         x = -base_length/3, elle est TIREE derriere le robot : elle roule
+         par-dessus les bosses au lieu d'y buter.
+         Touche le sol sans ecart (centre a -wheel_radius/2, rayon
+         wheel_radius/2) : trepied, pas de basculement.
+         Pas de visuel : elle apparaissait sous le chassis maille. -->
     <link name="caster_wheel_link">
         <collision>
             <geometry>
@@ -184,7 +188,7 @@
          Roues VISUELLES : les 4 roues du vrai SeekurJR, a leurs positions
          reelles (x = +/- wheelbase/2, y = +/- wheel_separation/2).
          - Aucune collision : la physique reste portee par les 2 roues
-           motrices + la roulette (jalons v6 a v9 inchanges).
+           motrices avant + la roulette arriere.
          - Joint continuous avec <mimic> sur la roue motrice du meme cote :
            robot_state_publisher calcule leur angle a partir de
            /joint_states, donc elles tournent dans RViz des que les 2 joints
@@ -323,21 +327,28 @@
          Y : depuis wheel_separation [DS] directement. NE PAS recalculer
              depuis base_width + wheel_length : le chassis a un gap de
              degagement avec le pneu, les deux grandeurs sont independantes.
-         X : -base_length/4. Le vrai robot a 4 roues en skid-steer ; ce
-             modele en a 2 + une roulette avant, donc l'empattement reel
-             (425 mm [DS]) ne s'applique pas ici et n'est pas modelise.
+         X : +base_length/4 (traction AVANT). Le vrai robot a 4 roues en
+             skid-steer ; ce modele en a 2 + une roulette arriere, donc
+             l'empattement reel (425 mm [DS]) ne s'applique pas ici.
+             Pourquoi l'avant : face a une bosse, les roues qui attaquent
+             l'obstacle doivent etre motrices ; une roulette poussee bute
+             et devient elle-meme l'obstacle. Valide sur mine_polycam.
+
+         Historique : v6-v9 = roues arriere + roulette avant ; v10.1 =
+         roues a x = 0 + 2 roulettes (gap 2 cm) : le chassis basculait
+         d'une roulette a l'autre (tangage +/-3.3 deg mesure a l'IMU sim)
+         et les fermetures de proximite RTAB-Map sont tombees de 5 a 0-1.
+         Abandonne.
 
          LIMITE CONNUE - centre de rotation.
          Le vrai SeekurJR pivote au milieu de son empattement (x = 0).
-         Ce modele pivote autour de l'axe de ses deux roues (x = -0.263),
-         donc en rotation pure il decrit un arc de 26 cm de rayon au lieu
-         de tourner sur place. Biais systematique, borne, connu.
-         Correction possible le jour ou une rotation reelle est disponible
-         pour comparaison : roues a x = 0 + une seconde roulette a
-         l'arriere pour l'equilibre. Non fait pour l'instant : ce modele
-         est stable dans Gazebo et a servi de base aux jalons v6 a v9,
-         toucher a l'equilibre introduirait un risque non borne pour
-         corriger une erreur qui l'est. -->
+         Ce modele pivote autour de l'axe de ses deux roues (x = +0.263),
+         donc en rotation pure l'arriere decrit un arc de 26 cm de rayon
+         au lieu de tourner sur place. Biais systematique, borne, connu.
+         Le LiDAR (x = 0.535) est plus proche du pivot qu'en traction
+         arriere, ce qui limite son deplacement en rotation.
+         Pour pivoter au centre sans basculer : roues a x = 0 + roulettes
+         SUSPENDUES (joint prismatique + ressort), pas un simple gap. -->
     <joint name="base_right_wheel_joint" type="continuous">
         <parent link="base_link" />
         <child link="right_wheel_link" />
