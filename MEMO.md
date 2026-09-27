@@ -130,6 +130,34 @@ Contrôles : i/,/j/l (avant/arrière/gauche/droite), k (stop), q/z (vitesse).
 
 ---
 
+## Modèle de simulation (v10.2)
+
+Trépied : 2 roues motrices **avant** (x = +L/4) + 1 roulette **arrière** tirée
+(x = -L/3, sans écart), maillage SeekurJR, LiDAR incliné de 5° [SIM].
+Les roues qui attaquent une bosse sont motrices : franchit `mine_polycam`.
+Limite : pivote autour de l'essieu avant, pas au centre comme le vrai robot.
+
+Pourquoi pas les 2 roulettes de v10.1 : le châssis basculait d'une roulette à
+l'autre (±3.3° mesuré à l'IMU sim), ce qui a effondré les fermetures RTAB-Map.
+
+| mine_gallery, RTAB-Map 0.23.7 (2026-09-27) | Globales | Proximité |
+|---|---|---|
+| v10.1 : roues au centre + 2 roulettes, gap 2 cm | 1 | 0 |
+| Trépied roues arrière, LiDAR horizontal | 9 | 3 |
+
+Conduite manuelle non reproductible : pour comparer finement deux variantes,
+rejouer un bag `/cmd_vel` de référence (à faire).
+
+### Mesurer le tangage (sim ou vrai robot)
+
+    python3 src/seekur_driver/tools/imu_pitch_probe.py
+    # attendu sur sol plat : ~0° au repos et à l'accélération
+
+### Statistiques d'une base après un run
+
+    rtabmap-info ~/.ros/rtabmap.db | grep -iE "closure|odometry length|LTM"
+    # la base est écrasée au prochain lancement : la copier avant
+
 ## Robot réel (à compléter)
 
 À faire quand le robot physique sera disponible :
