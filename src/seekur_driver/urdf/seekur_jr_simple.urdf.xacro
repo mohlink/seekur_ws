@@ -384,10 +384,11 @@
              dans toute la carte SLAM (un decalage lateral non modelise
              biaise les distances mur gauche / mur droit).
              A MESURER : distance centre du boitier <-> axe longitudinal. -->
+    <xacro:property name="lidar_pitch_deg" value="5" />      <!-- [SIM] inclinaison LiDAR vers le haut : evite le sol quand l avant replonge apres une bosse (a mesurer au lab) -->
     <joint name="laser_joint" type="fixed">
         <parent link="base_link" />
         <child link="laser_frame" />
-        <origin xyz="0.535 0 0.187" rpy="0 0 0" />
+        <origin xyz="0.535 0 0.187" rpy="0 ${-radians(lidar_pitch_deg)} 0" />
     </joint>
 
     <!-- Mat : pose sur le top du chassis, monte de camera_mast_height.
