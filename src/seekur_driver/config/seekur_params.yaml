@@ -12,8 +12,8 @@ seekur_driver:
     odom_frame: "odom"
     
     # Limites de vitesse
-    max_linear_vel: 2.0    # m/s
-    max_angular_vel: 3.14  # rad/s
+    max_linear_vel: 0.5      # m/s  (firmware : 1.0)
+    max_angular_vel: 0.7     # rad/s ≈ 40 °/s (firmware : 1.75)
     
     # Paramètres physiques robot
     wheel_separation: 0.663  # m (SeekurJR)
