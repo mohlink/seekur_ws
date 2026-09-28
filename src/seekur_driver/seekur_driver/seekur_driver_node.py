@@ -244,6 +244,10 @@ class SeekurDriverNode(Node):
         self.last_sent_rvel = None
         self.last_cmd_time = 0.0        # horodatage du dernier /cmd_vel recu
 
+        self.cmd_timed_out = False      # arret de securite actif
+        self.stop_resends = 0           # reemissions de l'arret deja faites
+        self.last_stop_time = 0.0
+
         # Threads
         self.watchdog_thread: Optional[threading.Thread] = None
         self.monitor_thread: Optional[threading.Thread] = None
@@ -428,11 +432,34 @@ class SeekurDriverNode(Node):
             # Securite : plus de /cmd_vel depuis cmd_timeout -> arret.
             # Le PULSE maintenant la liaison, le watchdog firmware ne
             # prendrait pas le relais si nav2 ou le teleop s'arretait.
-            if self.last_cmd_time > 0.0 and age > self.cmd_timeout:
+
+            timed_out = self.last_cmd_time > 0.0 and age > self.cmd_timeout
+            if timed_out:
                 vel = 0
                 rvel = 0
                 self.target_vel_mms = 0
                 self.target_rvel_degs = 0
+
+        # SeekurOS n'acquitte pas les commandes : une trame d'arret perdue
+        # laisserait le robot rouler. On journalise l'arret de securite et on
+        # le reemet 3 fois a 1 s d'intervalle (~18 octets/s, 3 s).
+        now = time.time()
+        if timed_out:
+            if not self.cmd_timed_out:
+                self.get_logger().warn(
+                    f'/cmd_vel silencieux depuis {age:.2f} s -> arret de securite')
+                self.cmd_timed_out = True
+                self.stop_resends = 0
+                self.last_stop_time = now
+            elif self.stop_resends < 3 and now - self.last_stop_time >= 1.0:
+                self.last_sent_vel = None       # force la reemission du 0
+                self.last_sent_rvel = None
+                self.stop_resends += 1
+                self.last_stop_time = now
+        elif self.cmd_timed_out:
+            self.get_logger().info('/cmd_vel de retour, reprise')
+            self.cmd_timed_out = False
+
 
         if vel != self.last_sent_vel:
             self.send_velocity_command(vel)
@@ -731,7 +758,9 @@ def main(args=None):
     finally:
         if 'node' in locals():
             node.destroy_node()
-        rclpy.shutdown()
+
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':
