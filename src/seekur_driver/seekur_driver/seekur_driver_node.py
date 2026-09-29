@@ -41,6 +41,34 @@ VERSION N3 (2026-09, robot réel) — correction du mouvement saccadé :
    ce temps. Lecture et écriture sont indépendantes ; le verrou ne
    protège que contre l'entrelacement des trames émises.
 
+VERSION N4 (2026-09-29, validations au lab sur le vrai robot) :
+
+7. SETO (#7) apres ENABLE (parametre reset_odom_on_start) : SeekurOS garde
+   sa pose depuis sa mise sous tension ; sans SETO, odom demarrait a
+   18 m du robot apres une journee d'essais.
+
+8. Vitesse angulaire de /odom tiree du champ ROTVEL du SIP (vitesse de
+   rotation mesuree par le firmware, corrigee par le gyro SAG) au lieu
+   de (rvel - lvel) / voie. Mesure au lab : en rotation sur place, les
+   roues d'un chassis a 4 roues motrices glissent et la formule des
+   roues surestimait la rotation de 42 %. ROTVEL concorde avec le
+   BNO055 a ~1 %. Repli sur la formule des roues si le SIP est court.
+
+9. Facteur d'echelle lineaire (parametre linear_scale, defaut 1.0) :
+   le firmware sous-estime les distances de ~1,5 % (1 m -> 0,985 ;
+   6 m -> 5,907), rayon de roulement effectif plus petit que sa
+   constante interne. Applique a x, y et vx. Reste a 1.0 en simulation ;
+   real.launch.py le passe a la valeur calibree.
+
+10. SYNC2 : SeekurOS ne renvoie pas un echo mais ses chaines
+    d'identification (nom, type, sous-type). Elles sont journalisees au
+    lieu d'un faux avertissement "echo different".
+
+11. Arret : le Ctrl+C de Jazzy ferme le contexte ROS avant
+    destroy_node() ; les messages d'arret passent alors par print()
+    (plus d'erreur rosout). VEL 0 / RVEL 0 envoyes en plus de STOP
+    avant CLOSE.
+
 Note DTR/RTS : on reproduit exactement le comportement du script
 interactif validé (setDTR(False), setRTS(False) après ouverture).
 L'historique du projet mentionne que l'ACTIVATION de ces signaux était
@@ -50,6 +78,7 @@ au hardware. En TCP, la question ne se pose pas.
 
 import rclpy
 from rclpy.node import Node
+from rclpy.executors import ExternalShutdownException
 
 # Messages ROS2
 from geometry_msgs.msg import Twist, TransformStamped
@@ -79,6 +108,11 @@ from enum import Enum
 # =============================================================================
 
 HDR0, HDR1 = 0xFA, 0xFB
+
+# Champs du SIP standard utilises (offsets dans la trame complete,
+# en-tete FA FB et octet de longueur compris) - manuel SeekurJR, table 6.
+SIP_ROTVEL_OFFSET = 31          # int16, dixiemes de degre par seconde
+SIP_MIN_LEN_ROTVEL = SIP_ROTVEL_OFFSET + 2 + 2   # + ROTVEL + checksum
 
 
 class ArgType(Enum):
@@ -210,6 +244,11 @@ class SeekurDriverNode(Node):
                 # cas de crash de nav2 ou du teleop : ce timeout est le seul
                 # filet cote client.
                 ('cmd_timeout', 0.5),       # s
+                # SETO apres ENABLE : odom demarre sous le robot (cf. note 7).
+                ('reset_odom_on_start', True),
+                # Correction d'echelle des distances firmware (cf. note 9).
+                # 1.0 en simulation ; valeur calibree passee par real.launch.py.
+                ('linear_scale', 1.0),
             ]
         )
 
@@ -223,6 +262,10 @@ class SeekurDriverNode(Node):
         self.max_angular_vel = self.get_parameter('max_angular_vel').value
         self.wheel_separation = self.get_parameter('wheel_separation').value
         self.publish_tf = self.get_parameter('publish_tf').value
+        self.reset_odom_on_start = self.get_parameter('reset_odom_on_start').value
+        self.linear_scale = self.get_parameter('linear_scale').value
+        if self.linear_scale != 1.0:
+            self.get_logger().info(f'Facteur d\'echelle lineaire : {self.linear_scale}')
 
         # Communication série / TCP
         self.ser = None                     # serial.Serial OU SerialTCPAdapter
@@ -353,7 +396,9 @@ class SeekurDriverNode(Node):
                 time.sleep(self.timeout)
                 with self._io_lock:
                     rx = self.ser.read(4096)
-                if rx != frame:
+                if cmd_id == 2:
+                    self._report_sync2(rx, frame)
+                elif rx != frame:
                     self.get_logger().warn(f'Écho SYNC{cmd_id} différent (reçu {len(rx)} octets)')
 
             time.sleep(0.5)
@@ -378,12 +423,42 @@ class SeekurDriverNode(Node):
             with self._io_lock:
                 self.ser.read(4096)
 
+            # SETO (cf. note 7) : remet la pose firmware a (0, 0, 0).
+            if self.reset_odom_on_start:
+                with self._io_lock:
+                    self.ser.write(build_cmd(7))
+                    self.ser.flush()
+                time.sleep(0.2)
+                self.get_logger().info('Odometrie remise a zero (SETO)')
+
             self.initialized = True
             return True
 
         except Exception as e:
             self.get_logger().error(f'Erreur initialisation: {e}')
             return False
+
+    def _report_sync2(self, rx: bytes, sync2_frame: bytes):
+        """Journalise la reponse a SYNC2 (cf. note 10).
+
+        SeekurOS repond par une trame de commande 2 contenant trois chaines
+        terminees par NUL : nom FLASH, type, sous-type.
+        """
+        if rx == sync2_frame:
+            self.get_logger().info('SYNC2 : echo simple (pas d\'identification)')
+            return
+        i = rx.find(b'\xFA\xFB')
+        if i >= 0 and len(rx) >= i + 6:
+            frame = rx[i:i + 3 + rx[i + 2]]
+            if len(frame) == 3 + rx[i + 2] and frame[3] == 2:
+                fields = [f.decode('ascii', 'replace') for f in frame[4:-2].split(b'\x00')]
+                fields += [''] * 3
+                name, rtype, subtype = fields[:3]
+                self.get_logger().info(
+                    f'Robot identifie : nom={name or "(vide)"}, type={rtype or "(vide)"}, '
+                    f'sous-type={subtype or "(vide)"}')
+                return
+        self.get_logger().warn(f'Reponse SYNC2 inattendue ({len(rx)} octets)')
 
     # -------------------------------------------------------------------------
     # Commandes de mouvement (nav2 -> protocole SeekurOS)
@@ -615,15 +690,21 @@ class SeekurDriverNode(Node):
             rvel = int.from_bytes(frame[12:14], 'little', signed=True)  # mm/s
             battery = frame[14]
 
-            # Conversion vers unités SI
-            self.robot_x = xpos / 1000.0
-            self.robot_y = ypos / 1000.0
+            # Conversion vers unités SI, avec correction d'echelle (note 9)
+            k = self.linear_scale
+            self.robot_x = k * xpos / 1000.0
+            self.robot_y = k * ypos / 1000.0
             self.robot_theta = thpos * 0.001534   # AngleConvFactor (rad/unité)
 
             linear_vel_mms = (lvel + rvel) / 2.0
-            self.robot_vx = linear_vel_mms / 1000.0
+            self.robot_vx = k * linear_vel_mms / 1000.0
 
-            if self.wheel_separation > 0:
+            # Vitesse angulaire (note 8) : ROTVEL, en dixiemes de deg/s
+            if len(frame) >= SIP_MIN_LEN_ROTVEL:
+                rotvel = int.from_bytes(
+                    frame[SIP_ROTVEL_OFFSET:SIP_ROTVEL_OFFSET + 2], 'little', signed=True)
+                self.robot_vtheta = math.radians(rotvel / 10.0)
+            elif self.wheel_separation > 0:
                 self.robot_vtheta = (rvel - lvel) / (self.wheel_separation * 1000.0)
 
             self.battery_voltage = battery * 0.2
@@ -719,8 +800,15 @@ class SeekurDriverNode(Node):
     # Arrêt propre
     # -------------------------------------------------------------------------
 
+    def _log_shutdown(self, msg: str):
+        """Log utilisable meme apres fermeture du contexte ROS (note 11)."""
+        if rclpy.ok():
+            self.get_logger().info(msg)
+        else:
+            print(f'[seekur_driver] {msg}', flush=True)
+
     def destroy_node(self):
-        self.get_logger().info('Arrêt du driver SeekurJR')
+        self._log_shutdown('Arrêt du driver SeekurJR')
 
         self.watchdog_active = False
         self.monitor_active = False
@@ -732,8 +820,10 @@ class SeekurDriverNode(Node):
 
         if self.ser and self.ser.is_open:
             try:
-                # STOP puis CLOSE avant de couper
+                # Consignes nulles, STOP, puis CLOSE avant de couper
                 with self._io_lock:
+                    self.ser.write(build_cmd(11, 0x3B, 0))   # VEL 0
+                    self.ser.write(build_cmd(21, 0x3B, 0))   # RVEL 0
                     self.ser.write(build_cmd(29))   # STOP
                     self.ser.flush()
                     time.sleep(0.1)
@@ -753,7 +843,7 @@ def main(args=None):
     try:
         node = SeekurDriverNode()
         rclpy.spin(node)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
         if 'node' in locals():

@@ -2,6 +2,17 @@
 """
 seekur_protocol_simulator.py - Simulateur du protocole série SeekurOS
 Émule un robot SeekurJR pour tester les drivers sans hardware
+
+2026-09-29 - alignement sur le vrai robot (validations au lab) :
+  - SIP au format reel complet (38 octets de donnees, table 6 du manuel),
+    avec ROTVEL rempli depuis la vitesse angulaire Gazebo, BATTERYX10 et
+    FLAGS b0 (moteurs). Avant : 20 octets de zeros, ROTVEL toujours nul.
+  - SETO (#7) : la pose rapportee repart de (0, 0, 0) a l'endroit ou est
+    le robot, comme le firmware.
+  - SYNC2 : repond par les chaines d'identification (nom, type,
+    sous-type) comme le vrai SeekurOS, au lieu d'un echo.
+  - Positions en int16 enroulees comme le firmware au-dela de +-32,767 m
+    (avant : struct.error et arret du flux SIP).
 """
 
 import socket
@@ -72,22 +83,51 @@ def build_response(cmd: int, arg_type: Optional[int] = None, arg_val: Optional[i
     frame = bytearray([HDR0, HDR1, count & 0xFF]) + body + bytes([(chk >> 8) & 0xFF, chk & 0xFF])
     return bytes(frame)
 
-def build_sip_packet(x_mm: int, y_mm: int, theta_units: int, 
-                    lvel_mms: int, rvel_mms: int, battery: int) -> bytes:
-    """Construit un paquet SIP standard"""
-    body = bytearray([0x32])  # Type SIP standard
-    
-    # Position (little endian, signed)
-    body += struct.pack('<h', x_mm)      # X position (mm)
-    body += struct.pack('<h', y_mm)      # Y position (mm)  
-    body += struct.pack('<h', theta_units) # Orientation (unités)
-    body += struct.pack('<h', lvel_mms)   # Vitesse roue gauche (mm/s)
-    body += struct.pack('<h', rvel_mms)   # Vitesse roue droite (mm/s)
-    body += bytes([battery])              # Niveau batterie
-    
-    # Padding pour compléter le SIP (format réel)
-    body += bytes([0] * 20)  # Autres champs SIP
-    
+def int16_wrap(v: int) -> int:
+    """Enroule sur int16 signe, comme les compteurs du firmware."""
+    return ((int(v) + 32768) % 65536) - 32768
+
+
+SEEKUR_ID = (b'Sim_SeekurJr', b'Pioneer', b'')   # nom, type, sous-type (SYNC2)
+
+
+def build_sync2_reply() -> bytes:
+    """Reponse a SYNC2 : commande 2 + trois chaines terminees par NUL."""
+    body = bytearray([2])
+    for field in SEEKUR_ID:
+        body += field + b'\x00'
+    chk = aria_checksum(body)
+    return bytes([HDR0, HDR1, (len(body) + 2) & 0xFF]) + bytes(body) + bytes([(chk >> 8) & 0xFF, chk & 0xFF])
+
+
+def build_sip_packet(x_mm: int, y_mm: int, theta_units: int,
+                    lvel_mms: int, rvel_mms: int, battery: int,
+                    rotvel_ddeg: int = 0, motors_on: bool = False) -> bytes:
+    """Construit un SIP standard au format du vrai SeekurJR (table 6).
+
+    Offsets dans la trame complete : TYPE 3, XPOS 4, YPOS 6, THPOS 8,
+    L VEL 10, R VEL 12, BATTERY 14, STALL 15, NU 17, FLAGS 19,
+    7 octets NU 21-27, BATTERYX10 28, CHARGESTATE 30, ROTVEL 31,
+    FAULTFLAGS 33, LATVEL 35, NU 37, checksum 39. Longueur 0x26.
+    """
+    body = bytearray([0x32])  # Type SIP standard (moteurs a l'arret)
+    body += struct.pack('<h', int16_wrap(x_mm))         # XPOS (mm)
+    body += struct.pack('<h', int16_wrap(y_mm))         # YPOS (mm)
+    body += struct.pack('<h', int16_wrap(theta_units))  # THPOS (unites)
+    body += struct.pack('<h', int16_wrap(lvel_mms))     # L VEL (mm/s)
+    body += struct.pack('<h', int16_wrap(rvel_mms))     # R VEL (mm/s)
+    body += bytes([battery & 0xFF])                     # BATTERY (0,2 V)
+    body += struct.pack('<H', 0)                        # STALL AND BUMPERS
+    body += struct.pack('<h', 0)                        # NU
+    body += struct.pack('<H', 1 if motors_on else 0)    # FLAGS (b0 moteurs)
+    body += bytes(7)                                    # 7 octets NU
+    body += struct.pack('<h', int16_wrap(battery * 2))  # BATTERYX10 (0,1 V)
+    body += bytes([0])                                  # CHARGESTATE
+    body += struct.pack('<h', int16_wrap(rotvel_ddeg))  # ROTVEL (0,1 deg/s)
+    body += struct.pack('<h', 0)                        # FAULTFLAGS
+    body += struct.pack('<h', 0)                        # LATVEL
+    body += struct.pack('<h', 0)                        # NU
+
     count = len(body) + 2
     chk = aria_checksum(body)
     frame = bytearray([HDR0, HDR1, count & 0xFF]) + body + bytes([(chk >> 8) & 0xFF, chk & 0xFF])
@@ -110,7 +150,12 @@ class SeekurProtocolSimulator(Node):
         self.x_mm = 0
         self.y_mm = 0
         self.theta_units = 0
+        self.rotvel_ddeg = 0      # vitesse angulaire mesuree (0,1 deg/s)
         self.battery_level = 175  # Comme observé (35V)
+
+        # Pose Gazebo brute et origine posee par SETO (x, y en m, yaw en rad)
+        self.gz_pose = (0.0, 0.0, 0.0)
+        self.origin = (0.0, 0.0, 0.0)
         
         # Interface ROS2 avec Gazebo — topics PRIVES de simulation (/sim/*)
         self.cmd_vel_pub = self.create_publisher(Twist, '/sim/cmd_vel', 10)
@@ -228,7 +273,7 @@ class SeekurProtocolSimulator(Node):
             
         elif cmd_id == 2 and self.state == SeekurState.SYNC1_RECEIVED:  # SYNC2
             self.state = SeekurState.SYNC2_RECEIVED
-            response = frame  # Écho
+            response = build_sync2_reply()  # identification, comme le vrai robot
             self.get_logger().info("SYNC2 reçu")
             
         elif cmd_id == 1 and self.state >= SeekurState.SYNC2_RECEIVED:  # OPEN
@@ -303,6 +348,11 @@ class SeekurProtocolSimulator(Node):
             self.cmd_vel_pub.publish(twist)
             self.get_logger().info("STOP reçu - Robot arrêté")
         
+        elif cmd_id == 7:  # SETO
+            self.origin = self.gz_pose
+            self._update_reported_pose()
+            self.get_logger().info("SETO reçu - pose remise a (0, 0, 0)")
+
         elif cmd_id == 2:  # CLOSE
             self.state = SeekurState.DISCONNECTED
             self.motors_enabled = False
@@ -331,14 +381,25 @@ class SeekurProtocolSimulator(Node):
     
     def odom_callback(self, msg: Odometry):
         """Récupère l'odométrie de Gazebo pour les SIP"""
-        # Convertir en format SeekurOS
-        self.x_mm = int(msg.pose.pose.position.x * 1000)
-        self.y_mm = int(msg.pose.pose.position.y * 1000)
-        
-        # Convertir quaternion en angle SeekurOS
         quat = msg.pose.pose.orientation
-        yaw = math.atan2(2*(quat.w*quat.z + quat.x*quat.y), 
+        yaw = math.atan2(2*(quat.w*quat.z + quat.x*quat.y),
                         1 - 2*(quat.y*quat.y + quat.z*quat.z))
+        self.gz_pose = (msg.pose.pose.position.x, msg.pose.pose.position.y, yaw)
+        # ROTVEL : vitesse angulaire mesuree, en dixiemes de deg/s
+        self.rotvel_ddeg = int(round(math.degrees(msg.twist.twist.angular.z) * 10.0))
+        self._update_reported_pose()
+
+    def _update_reported_pose(self):
+        """Pose rapportee dans le SIP = pose Gazebo exprimee dans le repere SETO."""
+        gx, gy, gyaw = self.gz_pose
+        ox, oy, oyaw = self.origin
+        dx, dy = gx - ox, gy - oy
+        c, s = math.cos(-oyaw), math.sin(-oyaw)
+        x = c * dx - s * dy
+        y = s * dx + c * dy
+        yaw = math.atan2(math.sin(gyaw - oyaw), math.cos(gyaw - oyaw))
+        self.x_mm = int(x * 1000)
+        self.y_mm = int(y * 1000)
         self.theta_units = int(yaw / 0.001534)
     
     def scan_callback(self, msg: LaserScan):
@@ -368,7 +429,9 @@ class SeekurProtocolSimulator(Node):
                 rvel_mms = int(v_right * 1000)
 
                 sip = build_sip_packet(self.x_mm, self.y_mm, self.theta_units,
-                                     lvel_mms, rvel_mms, self.battery_level)
+                                     lvel_mms, rvel_mms, self.battery_level,
+                                     rotvel_ddeg=self.rotvel_ddeg,
+                                     motors_on=self.motors_enabled)
 
                 self.client_socket.send(sip)
                 time.sleep(0.1)
