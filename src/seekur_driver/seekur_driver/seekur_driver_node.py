@@ -51,8 +51,10 @@ VERSION N4 (2026-09-29, validations au lab sur le vrai robot) :
    rotation mesuree par le firmware, corrigee par le gyro SAG) au lieu
    de (rvel - lvel) / voie. Mesure au lab : en rotation sur place, les
    roues d'un chassis a 4 roues motrices glissent et la formule des
-   roues surestimait la rotation de 42 %. ROTVEL concorde avec le
-   BNO055 a ~1 %. Repli sur la formule des roues si le SIP est court.
+   roues surestimait la rotation de 42 %. Mesure au lab : rapport ROTVEL / gyro BNO055 = 0,96 (ROTVEL suit la
+   consigne de l'asservissement, ~4 % sous la vitesse reelle) et ROTVEL
+   est en retard de 0,25 a 0,5 s sur le gyro. Le cap THPOS, lui,
+   concorde avec le BNO055 a ~1 %. Repli sur la formule des roues si le SIP est court.
 
 9. Facteur d'echelle lineaire (parametre linear_scale, defaut 1.0) :
    le firmware sous-estime les distances de ~1,5 % (1 m -> 0,985 ;
