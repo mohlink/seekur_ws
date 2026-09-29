@@ -111,9 +111,11 @@ def generate_launch_description():
                 # Genere l'URDF final avec toutes les proprietes ${...} evaluees.
 
                 'robot_description': ParameterValue(
-                    Command(['xacro ', xacro_file]),
+                    Command(['xacro ', xacro_file,
+                             ' lidar_pitch_deg:=6.5',
+                             ' mesh_uri:=package://seekur_driver/description/meshes']),
                     value_type=str,
-                ),
+                ),               
             }],
         ),
 
