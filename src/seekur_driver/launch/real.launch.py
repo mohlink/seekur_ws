@@ -205,7 +205,10 @@ def generate_launch_description():
                         # ici, c'est le driver qui publie odom->base_footprint.
                         # Le jour ou un real_ekf.launch.py sera cree, il
                         # overriderra 'publish_tf': False ici.
-                        {'use_sim_time': use_sim_time},
+                        {'use_sim_time': use_sim_time,
+                         # Rayon de roulement effectif : le firmware sous-estime
+                         # les distances de 1,5 % (1 m -> 0,985 ; 6 m -> 5,907).
+                         'linear_scale': 1.0155},
                     ],
                     # Pas de remap : /cmd_vel, /odom, /battery_state,
                     # /diagnostics vont directement sur les topics standards.
