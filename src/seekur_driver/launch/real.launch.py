@@ -65,7 +65,7 @@ Ne pas afficher le nuage de la camera dans RViz a travers le WiFi (trop lourd).
 
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
+from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command
 from launch.conditions import IfCondition
@@ -214,16 +214,30 @@ def generate_launch_description():
         # parametres) : topics /camera_front/... et repere camera_front_link,
         # identiques a la sim. Tout le reste est dans config/d435.yaml.
         # Au lab 2026-09-30 : couleur, profondeur alignee et nuage a 30 Hz.
+        #
+        # Groupe isole (forwarding=False) : sans lui, rs_launch.py recoit
+        # tous les arguments de ce launch (rviz, joy, imu...) et affiche un
+        # avertissement "Parameter ... is not supported" pour chacun.
+        # Son avertissement sur pointcloud__neon_ reste : il vient de sa liste
+        # fixe de noms, alors que le noeud ARM utilise bien ce nom (nuage
+        # verifie a 30 Hz).
         # ================================================================
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(os.path.join(
-                get_package_share_directory('realsense2_camera'), 'launch', 'rs_launch.py')),
-            launch_arguments={
-                'camera_namespace': '/',
-                'camera_name': 'camera_front',
-                'config_file': os.path.join(pkg_share_dir, 'config', 'd435.yaml'),
-            }.items(),
+        GroupAction(
+            scoped=True,
+            forwarding=False,
             condition=IfCondition(LaunchConfiguration('camera')),
+            actions=[
+                IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource(os.path.join(
+                        get_package_share_directory('realsense2_camera'),
+                        'launch', 'rs_launch.py')),
+                    launch_arguments={
+                        'camera_namespace': '/',
+                        'camera_name': 'camera_front',
+                        'config_file': os.path.join(pkg_share_dir, 'config', 'd435.yaml'),
+                    }.items(),
+                ),
+            ],
         ),
 
         # ================================================================
