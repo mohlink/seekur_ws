@@ -143,6 +143,31 @@ sudo iw dev wlP1p1s0 set power_save off            # effet immédiat
   du fichier commence par `zz-` pour être lu **après**
   `default-wifi-powersave-on.conf`.
 
+### Ethernet → LiDAR SICK LMS111
+
+`enP8p1s0` en IP fixe 192.168.0.10/24, lien direct vers le LMS111 (192.168.0.1).
+Jamais route par défaut : Internet, SSH et DDS restent sur le WiFi.
+
+Restauration (recrée la connexion ; NetworkManager la stocke via netplan
+dans /etc/netplan/90-NM-<uuid>.yaml) :
+
+```bash
+sudo nmcli con add type ethernet ifname enP8p1s0 con-name lidar-lms111 \
+  ipv4.method manual ipv4.addresses 192.168.0.10/24 ipv4.never-default yes \
+  ipv6.method disabled connection.autoconnect yes
+sudo nmcli con mod "Wired connection 1" connection.autoconnect no
+sudo nmcli con up lidar-lms111
+ping -c 3 192.168.0.1
+```
+
+Référence : `jetson/config/netplan-lidar-lms111.yaml` (copie du fichier généré).
+Ne jamais versionner les autres `/etc/netplan/90-NM-*.yaml` : ceux du WiFi
+contiennent les mots de passe en clair.
+
+Driver : `sudo apt install ros-jazzy-lms1xx`, puis
+`ros2 run lms1xx lms1xx --ros-args -p host:=192.168.0.1 -p frame_id:=laser_frame`
+(~50 Hz, orientation X vers l'avant vérifiée le 2026-09-28).
+
 ## 7. Aucune mise en veille
 
 ```bash

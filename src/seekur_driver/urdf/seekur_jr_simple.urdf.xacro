@@ -5,6 +5,20 @@
     <xacro:arg name="robot_color" default="Grey"/>
     <xacro:property name="robot_color" value="$(arg robot_color)"/>
 
+    <!-- Arguments specifiques au MATERIEL (2026-09-29).
+         Les valeurs par defaut sont celles de la SIMULATION : sim.launch.py
+         et les launch derives n'ont rien a passer. real.launch.py passe les
+         valeurs du vrai robot (meme logique que serial_port et linear_scale).
+           lidar_pitch_deg : inclinaison du LMS111 vers le haut. [SIM] 5 ;
+                             [LAB] 6.5 mesure (faisceau 40 cm a la sortie,
+                             52 cm a 1,05 m, 74 cm a 3 m).
+           mesh_uri        : prefixe des maillages. file:// + $(find) pour
+                             Gazebo ; package:// pour le reel, ou l'URDF est
+                             genere sur la Jetson et affiche par RViz sur le
+                             ROG (chemins absolus differents). -->
+    <xacro:arg name="lidar_pitch_deg" default="5"/>
+    <xacro:arg name="mesh_uri" default="file://$(find seekur_driver)/description/meshes"/>
+
     <!-- =======================================================
          Proprietes SeekurJR
          Sources :
@@ -49,7 +63,7 @@
          a -chassis_drop, haut a chassis_top). file:// + $(find) est resolu
          a la fois par RViz2 et par Gazebo Harmonic (package:// ne l'est
          pas toujours cote Gazebo). -->
-    <xacro:property name="mesh_dir" value="file://$(find seekur_driver)/description/meshes" />
+    <xacro:property name="mesh_dir" value="$(arg mesh_uri)" />
 
     <!-- Mat de camera. Le top du chassis est a (base_height - chassis_drop)
          dans base_link, soit 0.291 m ; la camera se deduit de la hauteur du
@@ -367,6 +381,8 @@
          x = y = 0 : sur l'axe vertical de rotation du robot, donc aucune
            acceleration centripete parasite en rotation lacet.
          z = -chassis_drop : le fond du chassis, soit 0.113 m du sol.
+           [LAB] 2026-09-29 : BNO055 fixe au centre, 11,5 cm du sol,
+           X vers l'avant, Z vers le haut -> modele juste a 2 mm pres.
            Plus bas que l'ancienne position a mi-hauteur, et donc plus
            proche du plan des axes de roue (z = 0) autour duquel se fait
            le tangage quand le robot franchit un obstacle : moins
@@ -395,7 +411,10 @@
              dans toute la carte SLAM (un decalage lateral non modelise
              biaise les distances mur gauche / mur droit).
              A MESURER : distance centre du boitier <-> axe longitudinal. -->
-    <xacro:property name="lidar_pitch_deg" value="5" />      <!-- [SIM] inclinaison LiDAR vers le haut : evite le sol quand l avant replonge apres une bosse (a mesurer au lab) -->
+    <!-- Inclinaison vers le haut : argument lidar_pitch_deg (voir en tete).
+         [SIM] 5 : evite le sol quand l'avant replonge apres une bosse.
+         [LAB] 6.5 : mesure sur le vrai robot, passe par real.launch.py. -->
+    <xacro:property name="lidar_pitch_deg" value="$(arg lidar_pitch_deg)" />
     <joint name="laser_joint" type="fixed">
         <parent link="base_link" />
         <child link="laser_frame" />

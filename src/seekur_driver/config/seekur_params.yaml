@@ -5,13 +5,15 @@ seekur_driver:
     baud_rate: 9600
     timeout: 0.5
     
+    cmd_timeout: 0.5   # s ; plus de /cmd_vel -> arret de securite (reemis 3 fois)   
+
     # Frames
     base_frame: "base_footprint"
     odom_frame: "odom"
     
     # Limites de vitesse
-    max_linear_vel: 2.0    # m/s
-    max_angular_vel: 3.14  # rad/s
+    max_linear_vel: 0.5      # m/s  (firmware : 1.0)
+    max_angular_vel: 0.7     # rad/s ≈ 40 °/s (firmware : 1.75)
     
     # Paramètres physiques robot
     wheel_separation: 0.663  # m (SeekurJR)

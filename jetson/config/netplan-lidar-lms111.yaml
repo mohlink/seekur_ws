@@ -1,0 +1,20 @@
+network:
+  version: 2
+  ethernets:
+    NM-c9994b22-b58b-40cf-a8c9-ceeaa8a0bf1c:
+      renderer: NetworkManager
+      match:
+        name: "enP8p1s0"
+      addresses:
+      - "192.168.0.10/24"
+      wakeonlan: true
+      networkmanager:
+        uuid: "c9994b22-b58b-40cf-a8c9-ceeaa8a0bf1c"
+        name: "lidar-lms111"
+        passthrough:
+          ethernet._: ""
+          ipv4.never-default: "true"
+          ipv6.addr-gen-mode: "default"
+          ipv6.method: "disabled"
+          ipv6.ip6-privacy: "-1"
+          proxy._: ""
