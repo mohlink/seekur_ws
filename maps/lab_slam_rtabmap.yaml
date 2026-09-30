@@ -1,0 +1,7 @@
+image: lab_slam_rtabmap.pgm
+resolution: 0.05
+origin: [-2.81691, -4.18617, 0.0]
+negate: 0
+occupied_thresh: 0.5
+free_thresh: 0.196
+
