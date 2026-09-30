@@ -157,9 +157,9 @@ def generate_launch_description():
 
                         # Topics camera : conventions realsense2_camera,
                         # etablies en P2 pour la fidelite sim-to-real.
-                        'input_image_topic': '/camera/color/image_raw',
-                        'input_depth_topic': '/camera/depth/image_rect_raw',
-                        'input_depth_info_topic': '/camera/color/camera_info',
+                        'input_image_topic': '/camera_front/color/image_raw',
+                        'input_depth_topic': '/camera_front/aligned_depth_to_color/image_raw',
+                        'input_depth_info_topic': '/camera_front/color/camera_info',
 
                         # Mode 3D : exploite le depth pour donner une
                         # position metrique aux detections. Indispensable

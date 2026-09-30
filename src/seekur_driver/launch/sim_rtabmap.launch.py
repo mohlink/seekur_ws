@@ -9,7 +9,7 @@ poses avec detection de fermeture de boucle.
 CHAINE COMPLETE :
   Gazebo + driver + EKF (via sim_ekf.launch.py)
     -> /odometry/filtered + TF odom->base_footprint
-  + camera D455 sim -> /camera/color/*, /camera/depth/*
+  + camera D455 sim -> /camera_front/color/*, /camera_front/depth/*
   + LiDAR sim -> /scan
     -> RTAB-Map consomme tout ca
       -> /map (occupancy grid 2D), /mapData, /mapGraph, TF map->odom
@@ -32,9 +32,9 @@ Visualisation SLAM detaillee (optionnelle, dans un autre terminal) :
   ros2 run rtabmap_viz rtabmap_viz --ros-args \\
     -p subscribe_depth:=true -p subscribe_rgb:=true -p subscribe_scan:=true \\
     -p approx_sync:=true -p frame_id:=base_link -p odom_frame_id:=odom \\
-    -r rgb/image:=/camera/color/image_raw \\
-    -r rgb/camera_info:=/camera/color/camera_info \\
-    -r depth/image:=/camera/depth/image_rect_raw \\
+    -r rgb/image:=/camera_front/color/image_raw \\
+    -r rgb/camera_info:=/camera_front/color/camera_info \\
+    -r depth/image:=/camera_front/aligned_depth_to_color/image_raw \\
     -r odom:=/odometry/filtered -r scan:=/scan
 
 Arguments : les memes que sim_ekf.launch.py (world, use_sim_time, rviz).
@@ -108,9 +108,9 @@ def generate_launch_description():
                         {'use_sim_time': use_sim_time},
                     ],
                     remappings=[
-                        ('rgb/image',       '/camera/color/image_raw'),
-                        ('rgb/camera_info', '/camera/color/camera_info'),
-                        ('depth/image',     '/camera/depth/image_rect_raw'),
+                        ('rgb/image',       '/camera_front/color/image_raw'),
+                        ('rgb/camera_info', '/camera_front/color/camera_info'),
+                        ('depth/image',     '/camera_front/aligned_depth_to_color/image_raw'),
                         ('odom',            '/odometry/filtered'),
                         ('scan',            '/scan'),
                     ],

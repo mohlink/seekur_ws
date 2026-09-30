@@ -77,17 +77,17 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
-        camera_link:
+        camera_front_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        camera_mast_link:
+        camera_front_mast_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        camera_optical_frame:
+        camera_front_optical_frame:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -155,11 +155,11 @@ Visualization Manager:
           Value: true
         base_link:
           Value: true
-        camera_link:
+        camera_front_link:
           Value: false
-        camera_mast_link:
+        camera_front_mast_link:
           Value: false
-        camera_optical_frame:
+        camera_front_optical_frame:
           Value: true
         caster_wheel_link:
           Value: false
@@ -190,10 +190,10 @@ Visualization Manager:
         odom:
           base_footprint:
             base_link:
-              camera_link:
-                camera_optical_frame:
+              camera_front_link:
+                camera_front_optical_frame:
                   {}
-              camera_mast_link:
+              camera_front_mast_link:
                 {}
               caster_wheel_link:
                 {}
@@ -318,7 +318,7 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /camera/color/image_raw
+        Value: /camera_front/color/image_raw
       Value: true
       Visibility:
         Grid: true
