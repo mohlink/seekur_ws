@@ -12,8 +12,12 @@ serial_no: '244622072884'
 
 # USB 2 (cable actuel) : 640x480 a 15 i/s max pour couleur + profondeur.
 # Avec un cable USB 3 : passer a 848x480x30 (valeur de la sim).
-depth_module.depth_profile: 640x480x15
-rgb_camera.color_profile: 640x480x15
+#depth_module.depth_profile: 640x480x15
+#rgb_camera.color_profile: 640x480x15
+
+# USB 3 (cable remplace le 2026-09-30) : 848x480 a 30 i/s, valeur de la sim.
+depth_module.depth_profile: 848x480x30
+rgb_camera.color_profile: 848x480x30
 
 enable_infra1: false
 enable_infra2: false
