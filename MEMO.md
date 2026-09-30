@@ -4,6 +4,28 @@ Aide-mémoire des commandes courantes. Voir `README.md` pour le contexte.
 
 ---
 
+## Travaux en cours
+
+A mettre a jour a chaque creation ou fusion de branche.
+Regle : branches courtes. Une branche qui attend recoit `git merge main --no-edit`
+apres chaque fusion dans main, pour que les conflits restent petits
+(lecon de `feat/camera-front`, 2026-09-30).
+
+| Branche | But | Fichiers touches | Etat | Bloque par |
+|---|---|---|---|---|
+| `fix/bno055-shutdown-gyro-tool` | Arret propre du noeud BNO055 ; outil gyro corrige (q, dTH) | `bno055_imu/bno055_serial_node.py`, `tools/interactive/seekur_gyro_test.py` | Pousse, a verifier au lab | Test : Ctrl+C sur real.launch.py sans trace d'erreur BNO055 |
+| `feat/real-slam` | SLAM sur le vrai robot | `launch/real_slam.launch.py`, `launch/real_rtabmap.launch.py` (nouveaux) | slam_toolbox valide au lab (2026-09-30, carte du labo) ; RTAB-Map LiDAR seul a tester | Camera a ajouter a real.launch.py, puis real_rtabmap avec camera |
+
+### A faire, sans branche pour l'instant
+- Driver : cumul des deplacements (limite des +-32,7 m du firmware).
+- Superviseur LiDAR (attente LMS111 pret, relance si /scan se tait).
+- EKF en 3D (roulis, tangage) : d'abord en sim.
+- Deceleration firmware reglable (SETA/SETRA) ; liaison serie 115 200 bauds
+  (outil SeekurOSParamsManager a retrouver).
+- Alimentation embarquee de la Jetson (DC-DC sur le 24 V ou batterie separee).
+
+---
+
 ## Prérequis à chaque session
 
 Trois lignes à faire dans tout nouveau terminal, dans cet ordre :
@@ -117,7 +139,7 @@ Contrôles : i/,/j/l (avant/arrière/gauche/droite), k (stop), q/z (vitesse).
 ### Envoyer des commandes SeekurOS à la main au vrai robot
 
     python3 src/seekur_driver/tools/interactive/seekur_interactive_serial.py \
-      --port /dev/ttyUSB0
+      --port /dev/seekur
 
 ### Détecter le baudrate d'un port série inconnu
 
@@ -158,24 +180,63 @@ rejouer un bag `/cmd_vel` de référence (à faire).
     rtabmap-info ~/.ros/rtabmap.db | grep -iE "closure|odometry length|LTM"
     # la base est écrasée au prochain lancement : la copier avant
 
-## Robot réel (à compléter)
+## Robot réel
 
-À faire quand le robot physique sera disponible :
+Repartition : tout tourne sur la **Jetson** (`jetson-seekur`), manette et
+RViz sur le **ROG**. Meme domaine DDS (0) : arreter les noeuds de la Jetson
+avant de lancer une sim sur le ROG (sinon /cmd_vel, /tf, /scan se melangent,
+et piloter la sim peut faire bouger le vrai robot).
 
-- Vérifier le port série effectif : `ls -l /dev/ttyUSB*`
-- Vérifier le baudrate avec `seekur_baudrate_detector` si doute
-- Vérifier que DTR/RTS sont bien activés côté driver (déjà géré par
-  seekur_driver_node.py, mais bon à savoir en cas de silence radio)
+### Avant de lancer
+- Robot allume depuis **~1 min** : le LMS111 n'est pas pret juste apres
+  l'allumage et `lms1xx` peut se bloquer (« Laser not ready »).
+- Bouton MOTORS relache (bleu clignotant) pour autoriser le mouvement.
+- Robot sur cales pour les premiers essais d'une session.
+- Liens udev : `/dev/seekur` (PL2303, robot), `/dev/imu` (Nano CH340, BNO055).
 
-Différence sim → réel : deux paramètres seulement dans `seekur_params.yaml`
-(voir tableau dans README.md).
+### Lancements (sur la Jetson, dans tmux)
 
-Séquence type prévue :
+    ros2 launch seekur_driver real.launch.py rviz:=false joy:=false        # driver + LiDAR + IMU
+    ros2 launch seekur_driver real_ekf.launch.py rviz:=false joy:=false    # + EKF (base conseillee)
+    ros2 launch seekur_driver real_slam.launch.py rviz:=false joy:=false   # + slam_toolbox  [feat/real-slam]
+    ros2 launch seekur_driver real_rtabmap.launch.py rviz:=false joy:=false # + RTAB-Map (LiDAR seul) [feat/real-slam]
 
-    # 1. Appuyer sur le bouton MOTORS (LED bleue) sur le robot
-    # 2. Lancer le driver + EKF sans Gazebo
-    ros2 launch seekur_driver <launch_real.launch.py à créer>
-    # 3. Éventuellement teleop pour valider
+Camera D435 (pas encore dans real.launch.py) :
+
+    ros2 launch realsense2_camera rs_launch.py camera_namespace:=/ camera_name:=camera_front \
+      config_file:=$(ros2 pkg prefix seekur_driver)/share/seekur_driver/config/d435.yaml
+
+Sur le ROG : `ros2 launch seekur_driver teleop.launch.py`, puis
+`rviz2 -d $(ros2 pkg prefix seekur_driver)/share/seekur_driver/config/seekur_viz_real.rviz`.
+Ne pas afficher le nuage de la camera dans RViz via le WiFi (trop lourd).
+
+Sauvegarder une carte (slam_toolbox) :
+
+    ros2 run nav2_map_server map_saver_cli -f ~/seekur_ws/maps/<nom>
+
+### Differences sim -> reel
+Un seul fichier de config partage ; les valeurs propres au materiel sont
+passees par les launch reels :
+- `real.launch.py` : `serial_port` (yaml), `linear_scale: 1.0155`,
+  xacro `lidar_pitch_deg:=6.5` et `mesh_uri:=package://...`, `publish_tf`.
+- `real_ekf.launch.py` : reutilise `ekf.yaml`, surcharge `use_sim_time`
+  et `imu0_config` (vyaw du BNO055 seul, acceleration non fusionnee).
+
+### Valeurs mesurees au lab (2026-09-28/29)
+| Grandeur | Valeur |
+|---|---|
+| Odometrie en translation | firmware -1,5 % (1 m -> 0,985 ; 6 m -> 5,907) -> `linear_scale` 1.0155 |
+| Cap THPOS (gyro SAG) | juste a ~1 % ; ROTVEL = 0,96 x gyro BNO055, retard 0,25-0,5 s |
+| LiDAR LMS111 | faisceau a 40 cm du sol, incline de 6,5 deg vers le haut, ~50 Hz |
+| BNO055 | centre du chassis, 11,5 cm du sol, X avant / Z haut |
+| Camera D435 | USB 3, 848x480 a 30 Hz (couleur, profondeur alignee, nuage) |
+| Limites de vitesse de depart | 0,5 m/s ; 0,7 rad/s (firmware : 1,0 m/s ; 1,75 rad/s) |
+
+### Outils sur le vrai robot (driver arrete : port exclusif)
+
+    python3 src/seekur_driver/tools/interactive/seekur_config_reader.py           # CONFIGpac
+    python3 src/seekur_driver/tools/interactive/seekur_gyro_test.py --port /dev/seekur --rvel 15
+    python3 src/seekur_driver/tools/imu_pitch_probe.py                            # roulis/tangage/cap
 
 ---
 
