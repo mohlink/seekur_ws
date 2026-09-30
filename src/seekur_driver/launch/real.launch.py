@@ -13,6 +13,10 @@ CHAINE ACTIVE :
     -> TF base_footprint <-> base_link <-> roues, LiDAR, camera_front_link, IMU
   bno055_imu (Nano + BNO055 sur /dev/imu, 100 Hz)
     -> /imu/data (frame imu_link)
+  realsense2_camera (D435 USB 3, config/d435.yaml)
+    -> /camera_front/color/*, /camera_front/aligned_depth_to_color/*,
+       /camera_front/depth/color/points (848x480 a 30 Hz)
+    -> TF camera_front_link -> reperes optiques (usine)
   seekur_driver (serie 9600 baud, DTR/RTS)
     -> /odom + TF odom -> base_footprint (publish_tf:=true par defaut)
     -> /battery_state, /diagnostics
@@ -40,8 +44,8 @@ PREREQUIS PHYSIQUES :
     demarrage - le driver continuera de tourner mais rien ne pilotera.
 
 SEQUENCE DE DEMARRAGE :
-  - t=0 : robot_state_publisher + bno055_imu + lms1xx + joy_node +
-          teleop_twist_joy + twist_mux + rviz2
+  - t=0 : robot_state_publisher + bno055_imu + lms1xx + camera D435 +
+          joy_node + teleop_twist_joy + twist_mux + rviz2
   - t=2 : seekur_driver (delai pour laisser DDS s'etablir avant d'ouvrir le
           port serie - evite les timings serres si le driver demarre avant
           que /cmd_vel ait des subscribers)
@@ -54,12 +58,14 @@ Usage :
 
 Arguments : use_sim_time (defaut false, ce launch est pour le REEL),
             rviz (defaut true), joy (defaut true), imu (defaut true),
-            publish_tf (defaut true ; false quand l'EKF publie la TF).
+            camera (defaut true), publish_tf (defaut true ; false quand
+            l'EKF publie la TF).
+Ne pas afficher le nuage de la camera dans RViz a travers le WiFi (trop lourd).
 """
 
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, TimerAction
+from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command
 from launch.conditions import IfCondition
@@ -104,6 +110,11 @@ def generate_launch_description():
             'imu',
             default_value='true',
             description='Lancer le noeud IMU BNO055 (/imu/data)',
+        ),
+        DeclareLaunchArgument(
+            'camera',
+            default_value='true',
+            description='Lancer la camera D435 avant (camera_front)',
         ),
         DeclareLaunchArgument(
             'publish_tf',
@@ -195,6 +206,38 @@ def generate_launch_description():
             PythonLaunchDescriptionSource(os.path.join(
                 get_package_share_directory('bno055_imu'), 'launch', 'bno055.launch.py')),
             condition=IfCondition(LaunchConfiguration('imu')),
+        ),
+
+        # ================================================================
+        # Camera RealSense D435 avant (camera_front), USB 3.
+        # Nom et espace de noms sont des ARGUMENTS de rs_launch.py (pas des
+        # parametres) : topics /camera_front/... et repere camera_front_link,
+        # identiques a la sim. Tout le reste est dans config/d435.yaml.
+        # Au lab 2026-09-30 : couleur, profondeur alignee et nuage a 30 Hz.
+        #
+        # Groupe isole (forwarding=False) : sans lui, rs_launch.py recoit
+        # tous les arguments de ce launch (rviz, joy, imu...) et affiche un
+        # avertissement "Parameter ... is not supported" pour chacun.
+        # Son avertissement sur pointcloud__neon_ reste : il vient de sa liste
+        # fixe de noms, alors que le noeud ARM utilise bien ce nom (nuage
+        # verifie a 30 Hz).
+        # ================================================================
+        GroupAction(
+            scoped=True,
+            forwarding=False,
+            condition=IfCondition(LaunchConfiguration('camera')),
+            actions=[
+                IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource(os.path.join(
+                        get_package_share_directory('realsense2_camera'),
+                        'launch', 'rs_launch.py')),
+                    launch_arguments={
+                        'camera_namespace': '/',
+                        'camera_name': 'camera_front',
+                        'config_file': os.path.join(pkg_share_dir, 'config', 'd435.yaml'),
+                    }.items(),
+                ),
+            ],
         ),
 
         # ================================================================
