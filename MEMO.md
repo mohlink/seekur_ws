@@ -10,11 +10,14 @@ A mettre a jour a chaque creation ou fusion de branche.
 Regle : branches courtes. Une branche qui attend recoit `git merge main --no-edit`
 apres chaque fusion dans main, pour que les conflits restent petits
 (lecon de `feat/camera-front`, 2026-09-30).
+Fusions et push depuis le ROG ; la Jetson ne fait que LIRE GitHub
+(`fetch`, `switch`, `pull`), sauf pour ce qui est cree sur la Jetson (une carte).
+Avant un commit : `git branch --show-current` (commit tombe sur main par erreur
+le 2026-09-30 quand `git switch -c` a echoue sur une branche deja existante).
 
 | Branche | But | Fichiers touches | Etat | Bloque par |
 |---|---|---|---|---|
-| `fix/bno055-shutdown-gyro-tool` | Arret propre du noeud BNO055 ; outil gyro corrige (q, dTH) | `bno055_imu/bno055_serial_node.py`, `tools/interactive/seekur_gyro_test.py` | Pousse, a verifier au lab | Test : Ctrl+C sur real.launch.py sans trace d'erreur BNO055 |
-| `feat/real-slam` | SLAM sur le vrai robot | `launch/real_slam.launch.py`, `launch/real_rtabmap.launch.py` (nouveaux) | slam_toolbox valide au lab (2026-09-30, carte du labo) ; RTAB-Map LiDAR seul a tester | Camera a ajouter a real.launch.py, puis real_rtabmap avec camera |
+| `feat/real-slam` | SLAM sur le vrai robot | `launch/real_slam.launch.py`, `launch/real_rtabmap.launch.py` (nouveaux) | slam_toolbox valide au lab (2026-09-30, carte `maps/lab_slam_toolbox`) ; RTAB-Map LiDAR seul teste (murs plus epais que slam_toolbox, avertissements visuels) | real_rtabmap a passer a la camera (camera maintenant dans real.launch.py) ; LiDAR seul en repli avec `Kp/MaxFeatures: -1` |
 
 ### A faire, sans branche pour l'instant
 - Driver : cumul des deplacements (limite des +-32,7 m du firmware).
@@ -196,15 +199,15 @@ et piloter la sim peut faire bouger le vrai robot).
 
 ### Lancements (sur la Jetson, dans tmux)
 
-    ros2 launch seekur_driver real.launch.py rviz:=false joy:=false        # driver + LiDAR + IMU
+    ros2 launch seekur_driver real.launch.py rviz:=false joy:=false        # driver + LiDAR + IMU + camera
     ros2 launch seekur_driver real_ekf.launch.py rviz:=false joy:=false    # + EKF (base conseillee)
     ros2 launch seekur_driver real_slam.launch.py rviz:=false joy:=false   # + slam_toolbox  [feat/real-slam]
     ros2 launch seekur_driver real_rtabmap.launch.py rviz:=false joy:=false # + RTAB-Map (LiDAR seul) [feat/real-slam]
 
-Camera D435 (pas encore dans real.launch.py) :
-
-    ros2 launch realsense2_camera rs_launch.py camera_namespace:=/ camera_name:=camera_front \
-      config_file:=$(ros2 pkg prefix seekur_driver)/share/seekur_driver/config/d435.yaml
+Camera D435 : lancee par real.launch.py (argument `camera:=false` pour s'en
+passer). Deux avertissements `pointcloud__neon_ ... not supported` au demarrage
+sont normaux (liste fixe de rs_launch.py ; le nuage est bien publie a 30 Hz).
+La camera se reinitialise au demarrage (~6 s, `initial_reset`).
 
 Sur le ROG : `ros2 launch seekur_driver teleop.launch.py`, puis
 `rviz2 -d $(ros2 pkg prefix seekur_driver)/share/seekur_driver/config/seekur_viz_real.rviz`.
