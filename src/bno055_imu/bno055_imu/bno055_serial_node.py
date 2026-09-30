@@ -9,6 +9,11 @@ Lit les trames du sketch bno055_imu_bridge et publie :
 Trames rejetées : checksum faux, format invalide, quaternion de norme
 hors tolérance (élimine les trames vides du démarrage du BNO055).
 Reconnexion automatique si le port disparaît.
+
+Arrêt (2026-09-29) : sous Jazzy, le Ctrl+C ferme le contexte ROS avant que
+shutdown() arrête le thread de lecture. Le thread vérifie donc rclpy.ok()
+et intercepte l'échec de publication sur contexte fermé (plus de trace
+d'erreur « publisher's context is invalid » à l'arrêt).
 """
 
 import threading
@@ -17,6 +22,7 @@ import time
 import rclpy
 import serial
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
+from rclpy._rclpy_pybind11 import RCLError
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from sensor_msgs.msg import Imu
@@ -118,7 +124,7 @@ class Bno055SerialNode(Node):
         self._ser = None
 
     def _reader_loop(self):
-        while self._running:
+        while self._running and rclpy.ok():
             if self._ser is None:
                 self._open_serial()
                 continue
@@ -202,7 +208,12 @@ class Bno055SerialNode(Node):
         msg.linear_acceleration.y = ay
         msg.linear_acceleration.z = az
         msg.linear_acceleration_covariance = self.cov_accel
-        self.imu_pub.publish(msg)
+        try:
+            self.imu_pub.publish(msg)
+        except RCLError:
+            # Contexte ROS ferme par le Ctrl+C pendant la lecture : on s'arrete.
+            self._running = False
+            return
 
         with self._lock:
             self._stats['published'] += 1
