@@ -138,7 +138,7 @@
              du .mtl par une teinte unie (RViz2 et Gazebo). -->
         <visual>
             <geometry>
-                <mesh filename="${mesh_dir}/seekurjr_chassis.obj" />
+                <mesh filename="${mesh_dir}/seekurJr_moh.obj" />            
             </geometry>
             <origin xyz="0 0 0" rpy="0 0 0" />
         </visual>
