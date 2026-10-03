@@ -32,6 +32,11 @@ align_depth.enable: true
 pointcloud__neon_.enable: true
 pointcloud__neon_.stream_filter: 2
 
+# Flux couleur compresse (/camera_front/color/image_raw/compressed) :
+# JPEG 95 par defaut (~120 Ko/image) saturait le WiFi. A 30 : ~21 Ko/image,
+# flux complet 30 i/s ~650 Ko/s, ping ROG<->Jetson < 2 ms (lab 2026-10-03).
+camera_front.color.image_raw.compressed.jpeg_quality: 30
+
 publish_tf: true             # camera_front_link -> reperes optiques (usine)
 initial_reset: true          # reinitialise la camera au demarrage (etat propre)
 
