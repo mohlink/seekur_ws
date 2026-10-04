@@ -8,6 +8,8 @@ par-dessus la simulation.
 Ce qui est lance :
   - sim.launch.py complet (Gazebo + robot + bridge + driver + RViz2)
   - yolo_bringup : yolo_node, tracking_node, detect_3d_node, debug_node
+  - person_distance : distance des personnes et vehicules (2D + patch de
+                      profondeur), comme sur le robot reel
 
 Topics produits par la perception :
   /yolo/detections      : Detection2DArray (bbox pixels)
@@ -15,6 +17,10 @@ Topics produits par la perception :
   /yolo/tracking        : detections avec id persistant
   /yolo/dbg_image       : image annotee (boites + labels + scores)
   /yolo/dgb_bb_markers  : markers RViz des boites 3D
+  /person_distance/detections, /person_distance/nearest,
+  /person_distance/nearest_vehicle : voir person_distance_node.py
+  (en sim : 3,05 m mesures pour 3,23 m centre a centre, ecart = torse +
+  derive d'odometrie, 2026-10-04)
 
 
 PREREQUIS : DEUX WORKSPACES SOURCES
@@ -82,7 +88,9 @@ from launch.actions import (
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.conditions import IfCondition
 from launch_ros.substitutions import FindPackageShare
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
@@ -127,6 +135,17 @@ def generate_launch_description():
                 'millimetres, 16UC1). SEULE difference sim/reel de la '
                 'chaine de perception.'
             ),
+        ),
+
+        DeclareLaunchArgument(
+            'person_distance',
+            default_value='True',
+            description='Lancer person_distance (distance des personnes et vehicules)',
+        ),
+        DeclareLaunchArgument(
+            'distance_classes',
+            default_value='person,bicycle,car,motorcycle,bus,truck',
+            description="Classes mesurees par person_distance ('all' = toutes)",
         ),
 
         # --- Chaine sim complete (via sim.launch.py) ------------------------
@@ -184,6 +203,24 @@ def generate_launch_description():
                     name='yolo_image_view',
                     output='screen',
                     arguments=['/yolo/dbg_image'],
+                ),
+
+                # --- Distance des personnes et vehicules ---------------------
+                # Meme diviseur que yolo_ros (1 en sim). ParameterValue float :
+                # le noeud declare un double, un entier "1" serait refuse.
+                Node(
+                    package='seekur_driver',
+                    executable='person_distance_node',
+                    name='person_distance',
+                    output='screen',
+                    condition=IfCondition(LaunchConfiguration('person_distance')),
+                    parameters=[{
+                        'use_sim_time': LaunchConfiguration('use_sim_time'),
+                        'classes': LaunchConfiguration('distance_classes'),
+                        'depth_units_divisor': ParameterValue(
+                            LaunchConfiguration('depth_units_divisor'),
+                            value_type=float),
+                    }],
                 ),
 
             ]

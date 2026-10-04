@@ -10,6 +10,8 @@ Ce qui est lance :
   - yolo_bringup : yolo_node, tracking_node, debug_node
                    (+ detect_3d_node seulement avec use_3d:=True)
   - image_republisher : /yolo/dbg_image compresse en JPEG 30 pour le WiFi
+  - person_distance   : distance des personnes et vehicules (2D + patch de
+                        profondeur), voir person_distance_node.py
 
 Topics produits par la perception :
   /yolo/detections               : bbox en pixels
@@ -18,6 +20,10 @@ Topics produits par la perception :
   /yolo/dbg_image                : image annotee BRUTE (~34 Mo/s, rester local)
   /yolo/dbg_image/compressed     : image annotee JPEG 30 (a regarder a distance)
   /yolo/dgb_bb_markers           : markers RViz des boites 3D (use_3d:=True)
+  /person_distance/detections    : detections retenues, bbox3d.center en base_link
+  /person_distance/nearest       : distance de la personne la plus proche
+                                   (+inf = aucune ; 0.0 = profondeur indisponible)
+  /person_distance/nearest_vehicle : idem pour les vehicules
 
 
 2D PAR DEFAUT, 3D EN OPTION
@@ -33,9 +39,24 @@ en 3D : /yolo/detections_3d a 5-6 Hz avec 0,70 s de retard, contre
 /yolo/detections a 22,6 Hz et 0,12 s. Le retard vient de la file d'attente
 du noeud qui ne suit pas. Le cout est par detection et par taille de boite,
 pas par image : passer la camera a 15 i/s ne change rien.
-Pour la securite, la distance d'une personne sera obtenue a moindre cout
-par un noeud dedie (mediane de profondeur sur un petit patch au centre de
-la boite 2D), sans detect_3d_node.
+Pour la securite, la distance est donnee par person_distance (mediane de
+profondeur sur un petit patch au centre de la boite 2D), sans detect_3d_node.
+
+
+PERSON_DISTANCE (valide au lab 2026-10-04)
+------------------------------------------
+~29 Hz, 0,10 s de retard, ~27 % d'un coeur ; lineaire de 1 a 4 m.
+ZONE AVEUGLE PROCHE : sous ~0,7 m du centre du robot (~0,3 m de la camera),
+YOLO ne reconnait plus la personne -> nearest = +inf. Le champ proche doit
+etre couvert par le LiDAR ; la future regle d'arret doit tenir un delai de
+maintien. Desactivable : person_distance:=False.
+Classes : distance_classes (defaut personnes + vehicules COCO). Les engins
+miniers ne sont pas dans COCO : detection non garantie.
+
+REGLE RESEAU : ne jamais s'abonner depuis le ROG aux images BRUTES de la
+camera (/camera_front/*/image_raw). Un seul abonne distant a la profondeur
+alignee a fait chuter toute la camera a ~13 i/s (WiFi sature, envois du
+noeud RealSense bloques). Regarder uniquement les topics /compressed.
 
 
 PREREQUIS : DEUX WORKSPACES SOURCES (sur la Jetson)
@@ -94,7 +115,9 @@ from launch.actions import (
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.conditions import IfCondition
 from launch_ros.substitutions import FindPackageShare
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
@@ -131,6 +154,20 @@ def generate_launch_description():
                 "True : boites 3D, mais ~6 Hz et 0,7 s de retard sur la Jetson "
                 "(detect_3d_node sature un coeur CPU). Majuscule obligatoire : "
                 "yolo.launch.py fait eval() de la valeur, 'true' echoue."
+            ),
+        ),
+        DeclareLaunchArgument(
+            'person_distance',
+            default_value='True',
+            description='Lancer person_distance (distance des personnes et vehicules)',
+        ),
+        DeclareLaunchArgument(
+            'distance_classes',
+            default_value='person,bicycle,car,motorcycle,bus,truck',
+            description=(
+                "Classes COCO mesurees par person_distance, separees par des "
+                "virgules ('all' = toutes). person -> /person_distance/nearest, "
+                "les autres -> /person_distance/nearest_vehicle."
             ),
         ),
         DeclareLaunchArgument(
@@ -196,6 +233,24 @@ def generate_launch_description():
                         ('in', '/yolo/dbg_image'),
                         ('out/compressed', '/yolo/dbg_image/compressed'),
                     ],
+                ),
+
+                # --- Distance des personnes et vehicules ---------------------
+                # Meme diviseur que yolo_ros (un seul endroit pour la
+                # difference sim/reel). ParameterValue float : le noeud
+                # declare un double, un entier "1000" serait refuse.
+                Node(
+                    package='seekur_driver',
+                    executable='person_distance_node',
+                    name='person_distance',
+                    output='screen',
+                    condition=IfCondition(LaunchConfiguration('person_distance')),
+                    parameters=[{
+                        'classes': LaunchConfiguration('distance_classes'),
+                        'depth_units_divisor': ParameterValue(
+                            LaunchConfiguration('depth_units_divisor'),
+                            value_type=float),
+                    }],
                 ),
             ],
         ),

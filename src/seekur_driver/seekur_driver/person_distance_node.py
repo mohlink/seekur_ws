@@ -39,7 +39,8 @@ SORTIES
       target_frame), bbox3d.size a zero. Profondeur indisponible : center
       en NaN (voir ci-dessous).
   /person_distance/nearest     std_msgs/Float32
-      Distance horizontale sqrt(x^2 + y^2) de la personne la plus proche :
+      Distance horizontale sqrt(x^2 + y^2) de la PERSONNE (classe "person")
+      la plus proche :
         +inf  : personne detectee (aucune detection retenue)
         0.0   : au moins une personne SANS profondeur valide -> a traiter
                 comme TRES PROCHE (la D435 ne mesure pas sous ~0,3 m : une
@@ -48,8 +49,23 @@ SORTIES
         sinon : distance en metres
       Publie a chaque message de detections. Un consommateur doit appliquer
       un delai de garde : plus de message = plus d'information, pas "rien".
+  /person_distance/nearest_vehicle  std_msgs/Float32
+      Meme chose pour toutes les AUTRES classes retenues (vehicules : car,
+      truck, bus...). Separe de nearest : la regle d'arret pourra appliquer
+      une distance de securite differente aux personnes et aux vehicules.
 
 LIMITES CONNUES
+  - ZONE AVEUGLE PROCHE (lab 2026-10-04) : en dessous d'environ 0,7 m du
+    centre du robot (~0,3 m de la camera, minimum de la D435), YOLO cesse
+    de reconnaitre la personne (elle remplit l'image) et nearest passe a
+    +inf, en alternance puis en continu. La regle "0.0 = tres proche" ne se
+    declenche donc presque jamais en pratique : CE NOEUD NE COUVRE PAS LE
+    CHAMP PROCHE. Le LiDAR doit le couvrir, et la regle d'arret doit tenir
+    un delai de maintien (un +inf soudain apres une mesure proche = personne
+    probablement toujours la).
+  - Vehicules miniers (chargeuses, foreuses...) : absents de COCO. YOLO peut
+    les classer "truck"/"car" ou pas du tout ; ne pas compter dessus sans
+    reentrainement.
   - Dans le noir, la camera couleur ne voit rien : aucune detection, donc
     +inf. "Personne detectee" ne veut pas dire "personne presente". La
     couche de securite principale reste le LiDAR.
@@ -59,7 +75,18 @@ LIMITES CONNUES
   - Au-dela de max_range, la profondeur de la D435 est trop bruitee : la
     detection est ignoree.
 
+VALIDATION (lab 2026-10-04, Jetson)
+  ~29 Hz, retard 0,10 s, ~27 % d'un coeur (detect_3d_node : 5-6 Hz, 0,70 s,
+  100 %). Lineaire de 1 a 4 m (decalage constant, aucune erreur d'echelle) ;
+  profondeur camera verifiee sur une table : 1,032 m pour 1,00 m au ruban.
+  Lateral correct (y < 0 a droite du robot). ~2 % de mesures manquees
+  (profondeur synchronisee absente), sans consequence. En sim : 3,05 m pour
+  3,23 m (centre a centre), ecart = epaisseur du torse + derive d'odometrie.
+
 DEPENDANCE : yolo_msgs vient de ~/yolo_ws -> sourcer yolo_ws avant de lancer.
+NE JAMAIS lancer ce noeud sur le ROG contre le robot reel : il s'abonne a la
+profondeur brute (0,8 Mo/image) a travers le WiFi, ce qui fait chuter TOUTE
+la camera (couleur incluse) a ~13 i/s (constate le 2026-10-04).
 
 Test isole :
   ros2 run seekur_driver person_distance_node                      # reel
@@ -205,6 +232,8 @@ class PersonDistanceNode(Node):
             DetectionArray, '/person_distance/detections', 10)
         self.pub_nearest = self.create_publisher(
             Float32, '/person_distance/nearest', 10)
+        self.pub_nearest_vehicle = self.create_publisher(
+            Float32, '/person_distance/nearest_vehicle', 10)
 
         self.get_logger().info(
             f"classes={'toutes' if self.classes is None else sorted(self.classes)} "
@@ -231,7 +260,8 @@ class PersonDistanceNode(Node):
         return best
 
     def on_detections(self, msg: DetectionArray):
-        nearest = math.inf
+        nearest = math.inf           # classe "person"
+        nearest_vehicle = math.inf   # toutes les autres classes retenues
         out = DetectionArray()
         out.header = msg.header
 
@@ -247,10 +277,14 @@ class PersonDistanceNode(Node):
                     if dist is None:
                         continue                 # au-dela de max_range
                     out.detections.append(det)
-                    nearest = min(nearest, dist)
+                    if det.class_name == 'person':
+                        nearest = min(nearest, dist)
+                    else:
+                        nearest_vehicle = min(nearest_vehicle, dist)
 
         self.pub_dets.publish(out)
         self.pub_nearest.publish(Float32(data=float(nearest)))
+        self.pub_nearest_vehicle.publish(Float32(data=float(nearest_vehicle)))
 
     # --- Calcul -------------------------------------------------------------
 
