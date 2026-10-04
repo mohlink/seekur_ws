@@ -92,8 +92,9 @@ Une seule exception à cette règle, côté perception : `depth_image_units_divi
 # CycloneDDS : OBLIGATOIRE pour la caméra
 export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 
-# Rendu Gazebo sur GPU NVIDIA (laptop Optimus / PRIME offload)
-alias ros2nv='__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia ros2'
+# Rendu Gazebo sur GPU NVIDIA (laptop Optimus / PRIME offload) + garde-fou
+# sim/reel : ros2nv est une FONCTION (plus un alias), definie dans le bloc
+# « Isolation simulation / robot réel » ci-dessous.
 ```
 
 **CycloneDDS n'est pas optionnel.** Avec FastDDS (le défaut de Jazzy), les
@@ -103,6 +104,81 @@ Diagnostic complet documenté dans `urdf/seekur_jr_simple.urdf.xacro`.
 
 ```bash
 sudo apt install ros-jazzy-rmw-cyclonedds-cpp
+```
+
+### Isolation simulation / robot réel (ROG)
+
+La simulation et le robot réel utilisent les mêmes noms de topics. Sur un même
+domaine DDS, un nœud lancé pour la sim peut se brancher sans prévenir sur le
+vrai robot. Vécu le 2026-10-04 : `person_distance`, lancé pour la sim puis
+oublié, s'est abonné à la profondeur du robot à travers le WiFi et a fait
+chuter toute la caméra à ~13 i/s. Convention :
+
+| Mode | Domaine DDS | Prompt | Usage |
+|---|---|---|---|
+| normal (défaut) | 0 | `user@ROG-Strix:~$` | dialoguer avec le robot (Jetson, domaine 0) |
+| `sim` | 42 | `[SIM 42] user@ROG-Strix:~$` (rouge) | Gazebo et tout ce qui s'y connecte |
+
+- Taper `sim` dans **chaque** terminal de simulation (launch, téléop, RViz,
+  `ros2 topic echo`...) ; `real` pour revenir. Un nouveau terminal démarre
+  en mode normal.
+- `ros2nv launch` **refuse** une simulation (`sim*`, `slam`, `nav`, `nav_ekf`,
+  `gazebo_simple`, `seekur_navigation`) hors mode sim, et un launch `real*`
+  en mode sim. `ros2 launch` sans `nv` n'est pas contrôlé : toujours lancer
+  la sim avec `ros2nv`.
+- Le Jetson n'a rien de particulier : il reste au domaine 0.
+- Le fichier CycloneDDS doit garder `<Domain id="any">`, sinon il ignore
+  `ROS_DOMAIN_ID`.
+- Vérification : en mode normal, `ros2 node list` montre les nœuds du robot ;
+  en mode `sim`, il ne les montre plus.
+
+Bloc à ajouter à la fin de `~/.bashrc` sur toute machine de développement
+(il remplace l'ancien `alias ros2nv`, à supprimer) :
+
+```bash
+# ---------------------------------------------------------------------------
+# Isolation simulation / robot reel (2026-10-04)
+# Robot reel (Jetson) et terminaux normaux : domaine DDS 0 (ROS_DOMAIN_ID vide).
+# Simulation : domaine 42, SEULEMENT dans les terminaux ou l'on a tape `sim`.
+# ---------------------------------------------------------------------------
+SEEKUR_SIM_DOMAIN=42
+_SEEKUR_PS1_BASE="$PS1"
+
+sim() {
+    export ROS_DOMAIN_ID=$SEEKUR_SIM_DOMAIN
+    PS1="\[\e[1;31m\][SIM $SEEKUR_SIM_DOMAIN]\[\e[0m\] $_SEEKUR_PS1_BASE"
+    echo "Mode SIM : ROS_DOMAIN_ID=$SEEKUR_SIM_DOMAIN (robot reel invisible depuis ce terminal)"
+}
+
+real() {
+    unset ROS_DOMAIN_ID
+    PS1="$_SEEKUR_PS1_BASE"
+    echo "Mode REEL : domaine 0 (robot visible, simulation invisible)"
+}
+
+# ros2nv : rendu NVIDIA (comme l'ancien alias) + garde-fou sur le domaine.
+unalias ros2nv 2>/dev/null
+ros2nv() {
+    if [ "$1" = "launch" ]; then
+        local a base=""
+        for a in "$@"; do
+            case "$a" in *.launch.py) base="${a##*/}" ;; esac
+        done
+        case "$base" in
+            real*.launch.py)
+                if [ "$ROS_DOMAIN_ID" = "$SEEKUR_SIM_DOMAIN" ]; then
+                    echo "STOP : $base est un launch du ROBOT REEL, mais ce terminal est en mode SIM. Tapez : real" >&2
+                    return 1
+                fi ;;
+            sim*.launch.py|slam.launch.py|nav.launch.py|nav_ekf.launch.py|gazebo_simple.launch.py|seekur_navigation.launch.py)
+                if [ "$ROS_DOMAIN_ID" != "$SEEKUR_SIM_DOMAIN" ]; then
+                    echo "STOP : $base est une SIMULATION, mais ce terminal est en mode REEL (robot visible). Tapez : sim" >&2
+                    return 1
+                fi ;;
+        esac
+    fi
+    __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia ros2 "$@"
+}
 ```
 
 ### Séquence de sourcing
@@ -332,6 +408,19 @@ sont en commentaire dans les fichiers concernés.
 - **`--symlink-install` casse les métadonnées Python** du package
   (`PackageNotFoundError` au lancement). Build normal.
 - **conda doit être désactivé** avant de sourcer ROS2.
+- **Sim et robot réel sur le même domaine DDS.** Symptômes : nœuds en double
+  dans `ros2 node list`, valeurs incohérentes, caméra du robot qui ralentit
+  sans raison apparente. Solution : mode `sim` (voir Prérequis).
+- **Ne jamais s'abonner depuis le ROG aux images brutes du robot**
+  (`/camera_front/*/image_raw`, `/yolo/dbg_image`). Un seul abonné distant
+  (0,8 à 1,2 Mo/image) sature le WiFi, bloque les envois du nœud RealSense et
+  fait perdre des images à la source, pour tous les abonnés (constaté :
+  couleur 30 → 13 i/s, profondeur alignée 30 → 4 i/s). Regarder uniquement
+  les topics `/compressed`.
+- **Mesurer la cadence d'images avec `ros2 bag record`** (C++), pas avec
+  `ros2 topic hz` (Python : sature un cœur sur les images) ni via
+  `camera_info` (realsense2_camera 4.58 le publie en double ou découplé des
+  images). Compter les messages dans `ros2 bag info`.
 
 ### Gazebo / URDF
 
