@@ -43,6 +43,7 @@ setup(
         'console_scripts': [
             'seekur_driver_node = seekur_driver.seekur_driver_node:main',
             'seekur_protocol_simulator = seekur_driver.seekur_protocol_simulator:main',  # Nouvelle ligne
+            'person_distance_node = seekur_driver.person_distance_node:main',
         ],
     },
 
