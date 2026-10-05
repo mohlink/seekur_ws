@@ -77,25 +77,34 @@ ekf_filter_node:
     odom0_relative: false
 
     # --- SOURCE 2 : IMU (/imu/data) ------------------------------------------
-    # De l'IMU on prend :
-    #   - vyaw (vitesse angulaire Z, gyro) : LA source de rotation
-    #   - ax (acceleration lineaire X) : aide a estimer les changements
-    #     de vitesse fins entre deux mesures odom
+    # De l'IMU on prend UNIQUEMENT vyaw (vitesse angulaire Z, gyro) : LA
+    # source de rotation.
     # On NE prend PAS l'orientation absolue (yaw) de l'IMU : sans
     # magnetometre fiable en milieu confine, le yaw absolu derive. On se
     # contente de la vitesse angulaire, integree par l'EKF.
+    #
+    # PAS d'acceleration lineaire (ax), ni en sim ni en reel (2026-10-05) :
+    #   - reel : le BNO055 a un biais d'accelerometre mesure (decision de
+    #     calibration, deja applique par real_ekf.launch.py) ;
+    #   - sim (mine_polycam) : au demarrage, le choc du robot qui se pose sur
+    #     le maillage etait integre en vitesse, sans /odom pour l'arreter ;
+    #     la pose EKF glissait de 1,8 m puis restait decalee de 1 m, robot
+    #     immobile (/odom a 0).
+    #   La vitesse lineaire vient des roues seules : c'est fiable en
+    #   translation, et une IMU n'apporte que de la derive une fois integree.
+    #   Sim et reel ont maintenant la MEME configuration EKF.
     imu0: imu/data
     imu0_config: [false, false, false,
                   false, false, false,
                   false, false, false,
                   false, false, true,
-                  true,  false, false]
+                  false, false, false]
     imu0_queue_size: 10
     imu0_differential: false
     imu0_relative: false
 
-    # L'IMU sim ne fournit pas d'orientation absolue fiable -> on desactive
-    # la fusion d'orientation absolue et on retire la gravite de l'accel.
+    # Sans effet tant que l'acceleration n'est pas fusionnee ; garde pour le
+    # jour ou on la reactiverait (passage en 3D, voir MEMO).
     imu0_remove_gravitational_acceleration: true
 
     # --- Covariance de process (reglage fin, valeurs par defaut adaptees) ----
