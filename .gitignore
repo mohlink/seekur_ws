@@ -7,3 +7,4 @@ __pycache__/
 *.bak
 frames_*.gv
 frames_*.pdf
+*.pt
