@@ -17,13 +17,11 @@ POURQUOI (mesures au lab 2026-09-29) :
 
 MEME CONFIGURATION QUE LA SIM :
   On reutilise config/ekf.yaml (celui de sim_ekf.launch.py) et on ne
-  surcharge ici que ce qui differe sur le materiel :
-    - use_sim_time : false
-    - imu0_config  : vyaw seulement. La sim fusionne aussi ax (IMU Gazebo
-      parfaite) ; le vrai BNO055 a un biais d'accelerometre mesure et son
-      acceleration n'est pas fusionnee (decision de calibration).
-  Tout reglage commun (frequence, mode 2D, covariances de process) se fait
-  dans ekf.yaml et vaut pour les deux.
+  surcharge ici que use_sim_time (false). Depuis le 2026-10-05, ekf.yaml
+  ne fusionne plus l'acceleration de l'IMU, en sim comme en reel (vyaw du
+  gyro seul) : la surcharge imu0_config qui existait ici pour le BNO055
+  n'est plus necessaire. Tout reglage EKF se fait dans ekf.yaml et vaut
+  pour les deux.
 
 PROPRIETAIRE UNIQUE de la TF odom->base_footprint : l'EKF. real.launch.py
 est inclus avec publish_tf:=false (le driver publie /odom sans la TF).
@@ -47,14 +45,6 @@ def generate_launch_description():
 
     pkg_share_dir = get_package_share_directory('seekur_driver')
     ekf_config = os.path.join(pkg_share_dir, 'config', 'ekf.yaml')
-
-    # Matrice robot_localization, ordre :
-    #   [x, y, z,  roll, pitch, yaw,  vx, vy, vz,  vroll, vpitch, vyaw,  ax, ay, az]
-    imu0_config_real = [False, False, False,
-                        False, False, False,
-                        False, False, False,
-                        False, False, True,
-                        False, False, False]
 
     return LaunchDescription([
 
@@ -88,8 +78,7 @@ def generate_launch_description():
                     output='screen',
                     parameters=[
                         ekf_config,
-                        {'use_sim_time': False,
-                         'imu0_config': imu0_config_real},
+                        {'use_sim_time': False},
                     ],
                 ),
             ],

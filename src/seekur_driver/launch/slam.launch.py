@@ -1,17 +1,26 @@
 #!/usr/bin/env python3
 """
-slam.launch.py - SLAM par-dessus la chaine de simulation SeekurJR
+slam.launch.py - SLAM 2D slam_toolbox par-dessus la chaine de simulation SeekurJR
 
-Refactorisation post-N2 : au lieu de dupliquer la chaine sim, on
-INCLUT sim.launch.py (qui contient deja Gazebo + robot + bridge +
-robot_state_publisher + simulateur + driver + RViz2 avec use_sim_time
-cable partout) et on ajoute simplement le noeud slam_toolbox par
-dessus. Ce meme pattern sera utilise pour nav.launch.py plus tard.
+On INCLUT sim_ekf.launch.py (Gazebo + robot + bridge + simulateur +
+driver + EKF + RViz2, use_sim_time cable partout) et on ajoute le noeud
+slam_toolbox par dessus.
 
-Ce que ce launch fait EN PLUS de sim.launch.py :
+2026-10-05 : base passee de sim.launch.py a sim_ekf.launch.py.
+  Sans EKF, le cap de l'odometrie sim vient des roues (plugin diff-drive
+  Gazebo) et derive des que les roues glissent en rotation : slam_toolbox
+  travaillait sur une odometrie degradee et la carte etait mauvaise. Avec
+  l'EKF, le gyro de l'IMU sim corrige le cap. Meme chaine que
+  sim_rtabmap.launch.py et que le vrai robot (real_slam.launch.py ->
+  real_ekf.launch.py). Proprietaires des TF : EKF pour odom->base_footprint,
+  slam_toolbox pour map->odom.
+
+Ce que ce launch fait EN PLUS de sim_ekf.launch.py :
   - lance slam_toolbox en mode online_async
   - gere le cycle de vie du lifecycle node (CONFIGURE puis ACTIVATE)
-  - charge le monde warehouse_simple.sdf par defaut (surchargable)
+  - garde warehouse_simple.sdf comme monde par defaut (sim_ekf.launch.py
+    a mine_gallery.sdf par defaut ; on fixe la valeur ici pour ne pas
+    changer le comportement habituel de ce launch)
 
 Pour cartographier :
   1. Lancer ce launch (Gazebo + toute la chaine + slam_toolbox se lance)
@@ -23,8 +32,8 @@ Pour cartographier :
   4. Sauvegarder :
      ros2 run nav2_map_server map_saver_cli -f ~/seekur_ws/maps/warehouse
 
-Arguments : herites de sim.launch.py (world, use_sim_time, rviz, driver)
-    ros2 launch seekur_driver slam.launch.py world:=mine_gallery.sdf
+Arguments : world (defaut warehouse_simple.sdf), use_sim_time, rviz
+    ros2nv launch seekur_driver slam.launch.py world:=mine_gallery.sdf
 """
 
 from launch import LaunchDescription
@@ -77,20 +86,21 @@ def generate_launch_description():
 
     return LaunchDescription([
 
-        # sim.launch.py declare deja tous les arguments (world, rviz,
-        # driver, use_sim_time). On n'a pas besoin de les redeclarer :
-        # ils sont transmis automatiquement quand on inclut le launch.
+        # Declares AVANT l'include : leurs valeurs priment sur les defauts
+        # de sim_ekf.launch.py (qui prendrait mine_gallery.sdf).
         DeclareLaunchArgument('use_sim_time', default_value='true'),
+        DeclareLaunchArgument('world', default_value='warehouse_simple.sdf',
+                              description='Monde SDF (defaut historique de ce launch)'),
 
-        # --- Chaine de simulation complete (via sim.launch.py) --------------
+        # --- Chaine de simulation + EKF (via sim_ekf.launch.py) -------------
+        # sim_ekf inclut sim.launch.py avec publish_tf:=false et demarre
+        # l'EKF a 4 s : l'EKF devient seul proprietaire de odom->base_footprint.
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource([
                 PathJoinSubstitution([
-                    pkg_share, 'launch', 'sim.launch.py'
+                    pkg_share, 'launch', 'sim_ekf.launch.py'
                 ])
             ]),
-            # Pas besoin de repasser les arguments : ils remontent
-            # naturellement depuis la ligne de commande vers l'include.
         ),
 
         # --- slam_toolbox par-dessus ----------------------------------------
