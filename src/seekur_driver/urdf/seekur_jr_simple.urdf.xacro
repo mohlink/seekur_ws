@@ -168,6 +168,10 @@
            center_rigid    : drivetrain_center_rigid.xacro
                              roues a x = 0 + 2 roulettes RIGIDES a 2 mm du
                              sol (sans ressort) : tangage borne a 0.33 deg.
+                             Sol plat uniquement.
+           center_rear_spring : drivetrain_center_rear_spring.xacro
+                             roues a x = 0 + roulette avant RIGIDE au sol
+                             + roulette arriere SUSPENDUE (ressort).
          Une valeur inconnue fait echouer xacro (fichier introuvable).
          Le plugin DiffDrive (plus bas) est commun : memes noms de joints. -->
     <xacro:arg name="drivetrain" default="tripod"/>

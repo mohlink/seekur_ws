@@ -1,0 +1,110 @@
+<?xml version="1.0"?>
+<!-- =====================================================================
+     Train de roulement CENTRE + roulette AVANT RIGIDE + roulette ARRIERE
+     SUSPENDUE (drivetrain:=center_rear_spring)
+     Inclus par seekur_jr_simple.urdf.xacro, qui fournit les proprietes
+     (base_length, wheel_radius, ...), les macros d'inertie et drive_wheel.
+
+     Compromis entre center (2 ressorts) et center_rigid (2 butees),
+     2026-10-08 :
+       - roues motrices a x = 0 : pivot au centre comme le vrai robot ;
+       - roulette AVANT fixe, au contact du sol : avec les 2 roues
+         motrices elle forme un trepied rigide (assiette au repos = 0).
+         Au freinage le nez ne peut pas plonger : c'est la qu'allait le
+         tangage de 5.3 deg de `center` (arret brutal du DiffDrive) ;
+       - roulette ARRIERE sur ressort precharge : elle appuie l'arriere au
+         sol, garde l'avant en appui et suit les creux / bosses du sol.
+         A l'acceleration (nez qui se leve) c'est elle qui retient.
+
+     Statique (robot ~78.5 kg, CG 8.7 mm devant l'axe, couple ~6.7 N.m) :
+       arriere : k * preload = 3000 * 0.015 = 45 N
+       avant   : 45 + 6.7 / 0.35 = ~64 N (roulette rigide)
+       ~86 % du poids reste sur les roues motrices.
+     L'avant ne decolle qu'au-dela de ~22 N.m cabreur (acceleration
+     ~3.5 m/s2) ; le ressort arriere prend alors le relais
+     (raideur en tangage k * caster_x^2 = 367 N.m/rad).
+
+     Limite : la roulette avant rigide est POUSSEE ; sur une grosse bosse
+     elle bute (principe du projet : les roues qui attaquent l'obstacle
+     devraient etre motrices). A evaluer sur mine_polycam.
+     ===================================================================== -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <xacro:property name="caster_radius" value="${wheel_radius / 2.0}" />  <!-- 0.1015 m -->
+    <xacro:property name="caster_x" value="${base_length / 3.0}" />         <!-- +/- 0.350 m -->
+
+    <!-- Roulette AVANT rigide : ecart au sol plat. 0 = trepied au contact,
+         assiette nulle au repos. Un ecart > 0 laisse le nez piquer de
+         atan(gap / caster_x) avant butee. -->
+    <xacro:property name="front_caster_gap" value="0.0" />
+
+    <!-- Ressort ARRIERE [SIM] - memes conventions que drivetrain_center.xacro :
+         joint prismatique d'axe +Z, q = 0 bas de sphere au sol plat,
+         q > 0 roulette repoussee vers le haut. F = -k (q - q_ref),
+         q_ref = -preload. -->
+    <xacro:property name="rear_caster_k" value="3000.0" />        <!-- N/m -->
+    <xacro:property name="rear_caster_preload" value="0.015" />   <!-- m -> 45 N au repos -->
+    <xacro:property name="rear_caster_damping" value="300.0" />   <!-- N.s/m -->
+    <xacro:property name="rear_caster_droop" value="0.03" />      <!-- m, descente max (creux) -->
+    <xacro:property name="rear_caster_travel" value="0.06" />     <!-- m, remontee max (bosse) -->
+
+    <!-- Roues motrices au CENTRE (x = 0) -->
+    <xacro:drive_wheel side="right" x="0" y="${-wheel_separation / 2.0}" />
+    <xacro:drive_wheel side="left"  x="0" y="${wheel_separation / 2.0}" />
+
+    <!-- Lien de roulette commun : sphere quasi sans frottement, pas de
+         visuel (masquee par le chassis maille). -->
+    <xacro:macro name="caster_link" params="name">
+        <link name="${name}_caster_link">
+            <collision>
+                <geometry>
+                    <sphere radius="${caster_radius}" />
+                </geometry>
+                <origin xyz="0 0 0" rpy="0 0 0" />
+            </collision>
+            <xacro:sphere_inertia m="${caster_mass}" r="${caster_radius}"
+                                 o_xyz="0 0 0" o_rpy="0 0 0" />
+        </link>
+        <gazebo reference="${name}_caster_link">
+            <mu1 value="0.001" />
+            <mu2 value="0.001" />
+        </gazebo>
+    </xacro:macro>
+
+    <!-- AVANT : rigide -->
+    <xacro:caster_link name="front" />
+    <joint name="base_front_caster_joint" type="fixed">
+        <parent link="base_link" />
+        <child link="front_caster_link" />
+        <origin xyz="${caster_x} 0 ${-wheel_radius + caster_radius + front_caster_gap}" rpy="0 0 0" />
+    </joint>
+
+    <!-- ARRIERE : suspendue -->
+    <xacro:caster_link name="rear" />
+    <joint name="base_rear_caster_joint" type="prismatic">
+        <parent link="base_link" />
+        <child link="rear_caster_link" />
+        <!-- A q = 0 : bas de la sphere sur le sol plat -->
+        <origin xyz="${-caster_x} 0 ${-wheel_radius + caster_radius}" rpy="0 0 0" />
+        <axis xyz="0 0 1" />
+        <limit lower="${-rear_caster_droop}" upper="${rear_caster_travel}"
+               effort="1000.0" velocity="2.0" />
+        <dynamics damping="${rear_caster_damping}" friction="0.0" />
+    </joint>
+    <gazebo reference="base_rear_caster_joint">
+        <springStiffness>${rear_caster_k}</springStiffness>
+        <springReference>${-rear_caster_preload}</springReference>
+    </gazebo>
+
+    <!-- JointStatePublisher : UNE SEULE declaration (par variante).
+         Le joint de suspension arriere est publie (TF de la roulette dans
+         RViz, debattement visible dans /joint_states ou PlotJuggler). -->
+    <gazebo>
+        <plugin filename="libgz-sim-joint-state-publisher-system.so" name="gz::sim::systems::JointStatePublisher">
+            <joint_name>base_left_wheel_joint</joint_name>
+            <joint_name>base_right_wheel_joint</joint_name>
+            <joint_name>base_rear_caster_joint</joint_name>
+        </plugin>
+    </gazebo>
+
+</robot>
