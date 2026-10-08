@@ -282,13 +282,18 @@
 
     <!-- IMU Link : monte sur la plateforme basse du chassis, sur l'axe
          vertical de rotation (voir imu_joint pour le detail du placement).
-         Petit box symbolique, inertie negligeable mais non nulle (exigence Gazebo). -->
+         Petit box symbolique, inertie negligeable mais non nulle (exigence Gazebo).
+         Visuel decale de +2 cm vers le haut (2026-10-08) : le fond du maillage
+         seekurJr_moh est a z = -0.081, 9 mm au-dessus du fond mesure du vrai
+         chassis (-0.090, ou est le repere imu_link). Sans decalage, la boite
+         rouge depassait sous le chassis. Le REPERE imu_link (TF, EKF) reste a
+         la position mesuree [LAB] ; seul le dessin bouge. -->
     <link name="imu_link">
         <visual>
             <geometry>
                 <box size="0.03 0.03 0.02" />
             </geometry>
-            <origin xyz="0 0 0" rpy="0 0 0" />
+            <origin xyz="0 0 0.02" rpy="0 0 0" />
             <material name="red" />
         </visual>
         <xacro:box_inertia m="0.05" x="0.03" y="0.03" z="0.02"
