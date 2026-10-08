@@ -1,0 +1,71 @@
+<?xml version="1.0"?>
+<!-- =====================================================================
+     Train de roulement CENTRE + 2 ROULETTES RIGIDES (drivetrain:=center_rigid)
+     Inclus par seekur_jr_simple.urdf.xacro, qui fournit les proprietes
+     (base_length, wheel_radius, ...), les macros d'inertie et drive_wheel.
+
+     Variante SANS RESSORT de drivetrain_center.xacro (2026-10-08) :
+     roulettes fixes, surelevees de caster_gap au-dessus du sol plat.
+     Les 2 roues motrices portent tout le poids ; le chassis ne peut
+     basculer que de atan(caster_gap / caster_x) avant qu'une roulette
+     touche et serve de butee.
+
+     Pourquoi cette variante : avec ressorts, l'arret brutal du plugin
+     DiffDrive (pas de limite de deceleration) fait piquer le robot de
+     5.3 deg, la roulette arriere decolle et le chassis oscille 2-3 fois
+     (PlotJuggler 2026-10-08). Ici le tangage est borne par la geometrie.
+
+     Historique du gap : v10.1 avait 2 mm puis 2 cm, car le robot restait
+     accroche sur les bosses de mine_polycam avec 2 mm. A revalider sur
+     mine_polycam ; mine_gallery (sol plat) n'est pas concerne.
+     ===================================================================== -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <xacro:property name="caster_radius" value="${wheel_radius / 2.0}" />  <!-- 0.1015 m -->
+    <xacro:property name="caster_x" value="${base_length / 3.0}" />         <!-- +/- 0.350 m -->
+    <!-- Ecart roulette / sol plat. 2 mm -> tangage max 0.33 deg
+         (atan(0.002 / 0.35)). Augmenter si le robot accroche les bosses. -->
+    <xacro:property name="caster_gap" value="0.002" />
+
+    <!-- Roues motrices au CENTRE (x = 0) : pivot au milieu du robot. -->
+    <xacro:drive_wheel side="right" x="0" y="${-wheel_separation / 2.0}" />
+    <xacro:drive_wheel side="left"  x="0" y="${wheel_separation / 2.0}" />
+
+    <!-- Roulette rigide : PHYSIQUE SEULEMENT (absente du vrai SeekurJR).
+         Sphere quasi sans frottement, joint fixe. Pas de visuel. -->
+    <xacro:macro name="rigid_caster" params="name x">
+        <link name="${name}_caster_link">
+            <collision>
+                <geometry>
+                    <sphere radius="${caster_radius}" />
+                </geometry>
+                <origin xyz="0 0 0" rpy="0 0 0" />
+            </collision>
+            <xacro:sphere_inertia m="${caster_mass}" r="${caster_radius}"
+                                 o_xyz="0 0 0" o_rpy="0 0 0" />
+        </link>
+        <joint name="base_${name}_caster_joint" type="fixed">
+            <parent link="base_link" />
+            <child link="${name}_caster_link" />
+            <!-- bas de la sphere a caster_gap du sol (sol a z = -wheel_radius) -->
+            <origin xyz="${x} 0 ${-wheel_radius + caster_radius + caster_gap}" rpy="0 0 0" />
+        </joint>
+        <gazebo reference="${name}_caster_link">
+            <mu1 value="0.001" />
+            <mu2 value="0.001" />
+        </gazebo>
+    </xacro:macro>
+
+    <xacro:rigid_caster name="front" x="${caster_x}" />
+    <xacro:rigid_caster name="rear"  x="${-caster_x}" />
+
+    <!-- JointStatePublisher : UNE SEULE declaration (par variante).
+         Joints fixes : seules les 2 roues motrices sont publiees. -->
+    <gazebo>
+        <plugin filename="libgz-sim-joint-state-publisher-system.so" name="gz::sim::systems::JointStatePublisher">
+            <joint_name>base_left_wheel_joint</joint_name>
+            <joint_name>base_right_wheel_joint</joint_name>
+        </plugin>
+    </gazebo>
+
+</robot>

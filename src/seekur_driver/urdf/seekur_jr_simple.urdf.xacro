@@ -163,7 +163,11 @@
            center          : drivetrain_center.xacro
                              roues a x = 0 + 2 roulettes SUSPENDUES (ressort)
                              avant/arriere : pivote au centre comme le vrai
-                             robot. NOUVEAU, a valider en sim.
+                             robot. Teste en sim 2026-10-08 : a l'arret
+                             brutal, pique de 5.3 deg et oscille.
+           center_rigid    : drivetrain_center_rigid.xacro
+                             roues a x = 0 + 2 roulettes RIGIDES a 2 mm du
+                             sol (sans ressort) : tangage borne a 0.33 deg.
          Une valeur inconnue fait echouer xacro (fichier introuvable).
          Le plugin DiffDrive (plus bas) est commun : memes noms de joints. -->
     <xacro:arg name="drivetrain" default="tripod"/>

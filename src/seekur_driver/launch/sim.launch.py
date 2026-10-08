@@ -124,10 +124,11 @@ def generate_launch_description():
             'drivetrain',
             default_value='tripod',
             description='Train de roulement du modele sim : tripod (roues '
-                        'a l avant + 1 roulette, defaut) ou center (roues au '
-                        'centre + 2 roulettes suspendues). Voir urdf/'
-                        'drivetrain_*.xacro. Herite par sim_ekf, sim_rtabmap, '
-                        'sim_yolo : ros2 launch ... drivetrain:=center',
+                        'a l avant + 1 roulette, defaut), center (roues au '
+                        'centre + 2 roulettes suspendues) ou center_rigid '
+                        '(roues au centre + 2 roulettes rigides a 2 mm du sol). '
+                        'Voir urdf/drivetrain_*.xacro. Herite par sim_ekf, '
+                        'sim_rtabmap, sim_yolo : ros2 launch ... drivetrain:=center_rigid',
         ),
         # --- Gazebo Harmonic avec le monde selectionne ----------------------
         IncludeLaunchDescription(
