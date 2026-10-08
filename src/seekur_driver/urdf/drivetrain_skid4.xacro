@@ -65,6 +65,63 @@
     <xacro:wheel_friction side="rear_right" />
     <xacro:wheel_friction side="rear_left" />
 
+    <!-- ================================================================
+         GLISSEMENT DES PNEUS : systeme WheelSlip de gz-sim (2026-10-08)
+
+         Probleme : DART traite le frottement comme une BOITE (2 directions
+         independantes, axe de roue / sens de roulement, chacune plafonnee
+         a +/- mu N ; dart/constraint/ContactConstraint.cpp), pas un cercle.
+         En rotation sur place les 4 pneus glissent lateralement, chaque
+         force laterale est saturee a mu N quelle que soit la vitesse de
+         glissement : avant et arriere se compensent et le moment resistant
+         est le meme pour TOUT pivot entre les deux essieux (equilibre
+         neutre). Un petit biais (CG 9 mm devant) pousse le pivot jusqu'au
+         bord : l'essieu AVANT. Mesures 2026-10-08 : pivot a x = +0.20 /
+         +0.21 m, insensible a la repartition de charge (elasticite des pneus
+         essayee puis retiree), au sens de rotation, a l'anisotropie du
+         frottement et a l'ordre de declaration.
+
+         Correction : WheelSlip rend la force laterale PROPORTIONNELLE au
+         glissement (comme la rigidite de derive d'un vrai pneu) :
+           force / charge = taux de glissement / slip_compliance
+         jusqu'au plafond mu. Les pneus se partagent alors le glissement et
+         le pivot revient au centre.
+
+         Valeurs [SIM] :
+           lateral 1.5 : en rotation sur place, taux de glissement lateral
+             ~ (wheelbase/2) / (wheel_separation/2) = 0.64 -> force/charge
+             0.43 < mu 0.6 : on reste dans la zone proportionnelle (au-dela,
+             saturation et equilibre neutre a nouveau).
+           longitudinal 0 : pas de glissement dans le sens de roulement, la
+             rotation reelle egale la commande (le firmware du vrai robot
+             regule le lacet avec son gyro).
+         La compliance est multipliee par la vitesse de roue : a l'arret,
+         aucun glissement (pas de derive sur une pente).
+         Prerequis WheelSlip respectes : fdir1 parallele a l'axe de roue,
+         une seule collision et un seul joint parent par roue. -->
+    <xacro:property name="slip_compliance_lateral" value="1.5" />
+    <xacro:property name="slip_compliance_longitudinal" value="0.0" />
+    <!-- charge statique estimee par roue : chassis + capteurs (~1.5 kg) + 4 roues -->
+    <xacro:property name="wheel_normal_force" value="${(base_mass + 1.5 + 4.0 * wheel_mass) * 9.81 / 4.0}" />
+
+    <xacro:macro name="slip_wheel" params="side">
+        <wheel link_name="${side}_wheel_link">
+            <slip_compliance_lateral>${slip_compliance_lateral}</slip_compliance_lateral>
+            <slip_compliance_longitudinal>${slip_compliance_longitudinal}</slip_compliance_longitudinal>
+            <wheel_normal_force>${wheel_normal_force}</wheel_normal_force>
+            <wheel_radius>${wheel_radius}</wheel_radius>
+        </wheel>
+    </xacro:macro>
+
+    <gazebo>
+        <plugin filename="gz-sim-wheel-slip-system" name="gz::sim::systems::WheelSlip">
+            <xacro:slip_wheel side="right" />
+            <xacro:slip_wheel side="left" />
+            <xacro:slip_wheel side="rear_right" />
+            <xacro:slip_wheel side="rear_left" />
+        </plugin>
+    </gazebo>
+
     <!-- Roues arriere ajoutees au plugin DiffDrive commun -->
     <xacro:property name="extra_drive_joints">
         <left_joint>base_rear_left_wheel_joint</left_joint>
