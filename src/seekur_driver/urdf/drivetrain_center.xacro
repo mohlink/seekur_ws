@@ -34,7 +34,8 @@
            q > 0   : roulette repoussee vers le HAUT (bosse)
            q < 0   : roulette descendue (creux)
          Ressort : F = -k (q - q_ref), avec q_ref = -preload, donc au repos
-         sur sol plat (q = 0) chaque roulette appuie de k * preload.
+         sur sol plat (q = 0) chaque roulette appuie de k * preload
+         (preload = caster_preload +/- caster_trim, voir plus bas).
 
          Dimensionnement (robot ~78.5 kg, ~770 N) :
            k = 3000 N/m, preload 15 mm -> 45 N par roulette, soit ~12 % du
@@ -51,7 +52,15 @@
          Butees : -droop (descente dans un creux) a +travel (bosse).
          Au-dela de travel, la roulette est en butee rigide comme en v10.1. -->
     <xacro:property name="caster_k" value="3000.0" />        <!-- N/m -->
-    <xacro:property name="caster_preload" value="0.015" />   <!-- m -->
+    <xacro:property name="caster_preload" value="0.015" />   <!-- m, moyenne avant/arriere -->
+    <!-- Correction d'assiette : le CG est 8.7 mm en avant de l'axe (LiDAR et
+         camera en porte-a-faux, couple ~6.7 N.m). Sans correction, le robot
+         pique du nez de ~0.5 deg (mesure sim 2026-10-08 : avant +3.8 mm,
+         arriere -3.8 mm). Precharge AVANT + trim, ARRIERE - trim :
+         6.7 N.m / 0.35 m / 2 roulettes = 9.6 N -> 9.6 / k = 3.2 mm.
+         Charge totale sur les roulettes inchangee (90 N). Seule l'assiette
+         au repos change ; la raideur en tangage reste la meme. -->
+    <xacro:property name="caster_trim" value="0.0032" />     <!-- m -->
     <xacro:property name="caster_damping" value="300.0" />   <!-- N.s/m -->
     <xacro:property name="caster_droop" value="0.03" />      <!-- m, descente max sous le sol plat -->
     <xacro:property name="caster_travel" value="0.06" />     <!-- m, remontee max au-dessus du sol plat -->
@@ -63,7 +72,7 @@
     <!-- Roulette suspendue : PHYSIQUE SEULEMENT (absente du vrai SeekurJR).
          Sphere quasi sans frottement sur joint prismatique vertical.
          Pas de visuel (masquee par le chassis maille). -->
-    <xacro:macro name="suspended_caster" params="name x">
+    <xacro:macro name="suspended_caster" params="name x preload">
         <link name="${name}_caster_link">
             <collision>
                 <geometry>
@@ -86,7 +95,7 @@
         </joint>
         <gazebo reference="base_${name}_caster_joint">
             <springStiffness>${caster_k}</springStiffness>
-            <springReference>${-caster_preload}</springReference>
+            <springReference>${-preload}</springReference>
         </gazebo>
         <gazebo reference="${name}_caster_link">
             <mu1 value="0.001" />
@@ -94,8 +103,8 @@
         </gazebo>
     </xacro:macro>
 
-    <xacro:suspended_caster name="front" x="${caster_x}" />
-    <xacro:suspended_caster name="rear"  x="${-caster_x}" />
+    <xacro:suspended_caster name="front" x="${caster_x}"  preload="${caster_preload + caster_trim}" />
+    <xacro:suspended_caster name="rear"  x="${-caster_x}" preload="${caster_preload - caster_trim}" />
 
     <!-- ==================================================================
          Plugin JointStatePublisher : UNE SEULE declaration (par variante).
