@@ -43,15 +43,21 @@
     <xacro:drive_wheel side="rear_right" x="${-wheelbase / 2.0}" y="${-wheel_separation / 2.0}" />
     <xacro:drive_wheel side="rear_left"  x="${-wheelbase / 2.0}" y="${wheel_separation / 2.0}" />
 
-    <!-- Frottement anisotrope : fdir1 = axe de roue (Y du link, qui ne
-         change pas quand la roue tourne autour de Y). mu1 s'applique le
-         long de fdir1 (lateral), mu2 dans le sens de roulement.
-         DART lit fdir1 dans le repere du link de la roue. -->
+    <!-- Frottement anisotrope : mu1 s'applique le long de fdir1 (lateral),
+         mu2 dans le sens de roulement.
+         ATTENTION au repere : DART lit fdir1 dans le repere de la FORME de
+         collision (ShapeNode, dart/constraint/ContactSurface.cpp), pas du
+         link. Le cylindre de roue est tourne de pi/2 autour de X : l'axe de
+         roue y est Z. Donc fdir1 = 0 0 1.
+         Bug du 2026-10-08 : avec 0 1 0 (rayon de la roue, qui tourne avec
+         elle), le lateral recevait souvent mu = 1.0 et le longitudinal 0.6 :
+         couple moteur ~153 N.m < resistance ~164 N.m, le robot ne tournait
+         pas. Avec 0 0 1 : ~256 N.m moteur contre ~98 N.m de resistance. -->
     <xacro:macro name="wheel_friction" params="side">
         <gazebo reference="${side}_wheel_link">
             <mu1>${wheel_mu_lateral}</mu1>
             <mu2>${wheel_mu_long}</mu2>
-            <fdir1>0 1 0</fdir1>
+            <fdir1>0 0 1</fdir1>
         </gazebo>
     </xacro:macro>
     <xacro:wheel_friction side="right" />
