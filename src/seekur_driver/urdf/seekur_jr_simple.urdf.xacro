@@ -34,7 +34,7 @@
                           494 = hauteur totale du robot
                           425 = empattement (axe avant - axe arriere)
                                 (utilise UNIQUEMENT pour placer les 4 roues
-                                visuelles ; la physique reste a 2 roues + roulette)
+                                visuelles ; la physique reste a 2 roues + roulette(s), voir drivetrain_*.xacro)
 
          ATTENTION - deux erreurs corrigees par rapport aux versions
          precedentes de ce fichier :
@@ -152,57 +152,54 @@
                           o_xyz="0 0 ${base_height / 2.0 - chassis_drop}" o_rpy="0 0 0" />
     </link>
 
-    <!-- Roue motrice right : PHYSIQUE SEULEMENT (collision + inertie).
-         Pas de visuel : ce sont les 4 roues visuelles, aux positions
-         reelles, qui s'affichent (voir plus bas). -->
-    <link name="right_wheel_link">
-        <collision>
-            <geometry>
-                <cylinder radius="${wheel_radius}" length="${wheel_length}" />
-            </geometry>
-            <origin xyz="0 0 0" rpy="${pi / 2.0} 0 0" />
-        </collision>
-        <xacro:cylinder_inertia m="${wheel_mass}" r="${wheel_radius}" l="${wheel_length}"
-                               o_xyz="0 0 0" o_rpy="${pi / 2.0} 0 0" />
-    </link>
+    <!-- ================================================================
+         TRAIN DE ROULEMENT INTERCHANGEABLE (2026-10-08)
+         Les 2 roues motrices PHYSIQUES (macro ci-dessous) sont communes ;
+         leur position, les roulettes et le JointStatePublisher Gazebo
+         viennent du fichier inclus, choisi par l'argument drivetrain :
+           tripod (defaut) : drivetrain_tripod.xacro
+                             roues a x = +base_length/4 + 1 roulette arriere
+                             (v10.2-tripode-traction-avant, valide sim et reel)
+           center          : drivetrain_center.xacro
+                             roues a x = 0 + 2 roulettes SUSPENDUES (ressort)
+                             avant/arriere : pivote au centre comme le vrai
+                             robot. NOUVEAU, a valider en sim.
+         Une valeur inconnue fait echouer xacro (fichier introuvable).
+         Le plugin DiffDrive (plus bas) est commun : memes noms de joints. -->
+    <xacro:arg name="drivetrain" default="tripod"/>
 
-    <!-- Roue motrice left : PHYSIQUE SEULEMENT (collision + inertie).
+    <!-- Roue motrice : PHYSIQUE SEULEMENT (collision + inertie).
          Pas de visuel : ce sont les 4 roues visuelles, aux positions
-         reelles, qui s'affichent (voir plus bas). -->
-    <link name="left_wheel_link">
-        <collision>
-            <geometry>
-                <cylinder radius="${wheel_radius}" length="${wheel_length}" />
-            </geometry>
-            <origin xyz="0 0 0" rpy="${pi / 2.0} 0 0" />
-        </collision>
-        <xacro:cylinder_inertia m="${wheel_mass}" r="${wheel_radius}" l="${wheel_length}"
-                               o_xyz="0 0 0" o_rpy="${pi / 2.0} 0 0" />
-    </link>
+         reelles, qui s'affichent (voir plus bas).
+         Y : depuis wheel_separation [DS] directement. NE PAS recalculer
+             depuis base_width + wheel_length : le chassis a un gap de
+             degagement avec le pneu, les deux grandeurs sont independantes. -->
+    <xacro:macro name="drive_wheel" params="side x y">
+        <link name="${side}_wheel_link">
+            <collision>
+                <geometry>
+                    <cylinder radius="${wheel_radius}" length="${wheel_length}" />
+                </geometry>
+                <origin xyz="0 0 0" rpy="${pi / 2.0} 0 0" />
+            </collision>
+            <xacro:cylinder_inertia m="${wheel_mass}" r="${wheel_radius}" l="${wheel_length}"
+                                   o_xyz="0 0 0" o_rpy="${pi / 2.0} 0 0" />
+        </link>
+        <joint name="base_${side}_wheel_joint" type="continuous">
+            <parent link="base_link" />
+            <child link="${side}_wheel_link" />
+            <origin xyz="${x} ${y} 0" rpy="0 0 0" />
+            <axis xyz="0 1 0" />
+        </joint>
+    </xacro:macro>
 
-    <!-- Roulette ARRIERE : PHYSIQUE SEULEMENT (absente du vrai SeekurJR,
-         gardee pour l'equilibre Gazebo du modele a 2 roues). Placee a
-         x = -base_length/3, elle est TIREE derriere le robot : elle roule
-         par-dessus les bosses au lieu d'y buter.
-         Touche le sol sans ecart (centre a -wheel_radius/2, rayon
-         wheel_radius/2) : trepied, pas de basculement.
-         Pas de visuel : elle apparaissait sous le chassis maille. -->
-    <link name="caster_wheel_link">
-        <collision>
-            <geometry>
-                <sphere radius="${wheel_radius / 2.0}" />
-            </geometry>
-            <origin xyz="0 0 0" rpy="0 0 0" />
-        </collision>
-        <xacro:sphere_inertia m="${caster_mass}" r="${wheel_radius / 2.0}"
-                             o_xyz="0 0 0" o_rpy="0 0 0" />
-    </link>
+    <xacro:include filename="drivetrain_$(arg drivetrain).xacro" />
 
     <!-- ================================================================
          Roues VISUELLES : les 4 roues du vrai SeekurJR, a leurs positions
          reelles (x = +/- wheelbase/2, y = +/- wheel_separation/2).
          - Aucune collision : la physique reste portee par les 2 roues
-           motrices avant + la roulette arriere.
+           motrices + la ou les roulettes (drivetrain_*.xacro).
          - Joint continuous avec <mimic> sur la roue motrice du meme cote :
            robot_state_publisher calcule leur angle a partir de
            /joint_states, donc elles tournent dans RViz des que les 2 joints
@@ -337,45 +334,6 @@
         <origin xyz="0 0 ${wheel_radius}" rpy="0 0 0"/>
     </joint>
 
-    <!-- Roues motrices.
-         Y : depuis wheel_separation [DS] directement. NE PAS recalculer
-             depuis base_width + wheel_length : le chassis a un gap de
-             degagement avec le pneu, les deux grandeurs sont independantes.
-         X : +base_length/4 (traction AVANT). Le vrai robot a 4 roues en
-             skid-steer ; ce modele en a 2 + une roulette arriere, donc
-             l'empattement reel (425 mm [DS]) ne s'applique pas ici.
-             Pourquoi l'avant : face a une bosse, les roues qui attaquent
-             l'obstacle doivent etre motrices ; une roulette poussee bute
-             et devient elle-meme l'obstacle. Valide sur mine_polycam.
-
-         Historique : v6-v9 = roues arriere + roulette avant ; v10.1 =
-         roues a x = 0 + 2 roulettes (gap 2 cm) : le chassis basculait
-         d'une roulette a l'autre (tangage +/-3.3 deg mesure a l'IMU sim)
-         et les fermetures de proximite RTAB-Map sont tombees de 5 a 0-1.
-         Abandonne.
-
-         LIMITE CONNUE - centre de rotation.
-         Le vrai SeekurJR pivote au milieu de son empattement (x = 0).
-         Ce modele pivote autour de l'axe de ses deux roues (x = +0.263),
-         donc en rotation pure l'arriere decrit un arc de 26 cm de rayon
-         au lieu de tourner sur place. Biais systematique, borne, connu.
-         Le LiDAR (x = 0.535) est plus proche du pivot qu'en traction
-         arriere, ce qui limite son deplacement en rotation.
-         Pour pivoter au centre sans basculer : roues a x = 0 + roulettes
-         SUSPENDUES (joint prismatique + ressort), pas un simple gap. -->
-    <joint name="base_right_wheel_joint" type="continuous">
-        <parent link="base_link" />
-        <child link="right_wheel_link" />
-        <origin xyz="${base_length / 4.0} ${-wheel_separation / 2.0} 0" rpy="0 0 0" />
-        <axis xyz="0 1 0" />
-    </joint>
-
-    <joint name="base_left_wheel_joint" type="continuous">
-        <parent link="base_link" />
-        <child link="left_wheel_link" />
-        <origin xyz="${base_length / 4.0} ${wheel_separation / 2.0} 0" rpy="0 0 0" />
-        <axis xyz="0 1 0" />
-    </joint>
 
     <!-- IMU monte au centre de la PLATEFORME BASSE du chassis.
          x = y = 0 : sur l'axe vertical de rotation du robot, donc aucune
@@ -393,11 +351,6 @@
         <origin xyz="0 0 ${-chassis_drop}" rpy="0 0 0" />
     </joint>
 
-    <joint name="base_caster_wheel_joint" type="fixed">
-        <parent link="base_link" />
-        <child link="caster_wheel_link" />
-        <origin xyz="${-base_length / 3.0} 0 ${-wheel_radius / 2.0}" rpy="0 0 0" />
-    </joint>
 
     <!-- LiDAR SICK, monte en saillie a l'AVANT sur support en equerre.
          z : [LAB] 39 cm du sol apres regonflage -> 0.39 - 0.203 = 0.187
@@ -485,18 +438,6 @@
         </plugin>
     </gazebo>
 
-    <!-- ==================================================================
-         Plugin JointStatePublisher : UNE SEULE déclaration.
-         C'est lui qui produit l'état (position/vitesse) des roues côté
-         Gazebo. Ce flux doit ensuite être ponté vers ROS2 (/joint_states)
-         par ros_gz_bridge, sinon RViz2 affiche des roues figées.
-         ================================================================== -->
-    <gazebo>
-        <plugin filename="libgz-sim-joint-state-publisher-system.so" name="gz::sim::systems::JointStatePublisher">
-            <joint_name>base_left_wheel_joint</joint_name>
-            <joint_name>base_right_wheel_joint</joint_name>
-        </plugin>
-    </gazebo>
 
     <gazebo>
         <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
@@ -649,11 +590,6 @@
     <!-- base_link et roues : plus de <material> Gazebo, les couleurs
          viennent des .mtl des maillages. -->
 
-    <gazebo reference="caster_wheel_link">
-        <material>Gazebo/Black</material>
-        <mu1 value="0.001" />
-        <mu2 value="0.001" />
-    </gazebo>
 
     <gazebo reference="laser_frame">
         <material>Gazebo/Grey</material>

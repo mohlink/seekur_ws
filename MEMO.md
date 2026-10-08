@@ -18,6 +18,7 @@ le 2026-09-30 quand `git switch -c` a echoue sur une branche deja existante).
 | Branche | But | Fichiers touches | Etat | Bloque par |
 |---|---|---|---|---|
 | `feat/real-slam` | SLAM sur le vrai robot | `launch/real_slam.launch.py`, `launch/real_rtabmap.launch.py` (nouveaux) | slam_toolbox valide au lab (2026-09-30, carte `maps/lab_slam_toolbox`) ; RTAB-Map LiDAR seul teste (murs plus epais que slam_toolbox, avertissements visuels) | real_rtabmap a passer a la camera (camera maintenant dans real.launch.py) ; LiDAR seul en repli avec `Kp/MaxFeatures: -1` |
+| `feat/drivetrain-switch` | Train de roulement sim interchangeable : `drivetrain:=tripod` (defaut, inchange) ou `center` (roues au centre + 2 roulettes suspendues, ressort k=3000 N/m, precharge 15 mm, amortissement 300) | `urdf/seekur_jr_simple.urdf.xacro`, `urdf/drivetrain_tripod.xacro` et `urdf/drivetrain_center.xacro` (nouveaux), `launch/sim.launch.py` | URDF des 2 variantes valide (`check_urdf`) ; `tripod` identique a main. Pas encore lance dans Gazebo | Test Gazebo de `center` sur le ROG (tangage IMU, debattement `/joint_states`, mine_polycam) |
 
 ### A faire, sans branche pour l'instant
 - Driver : cumul des deplacements (limite des +-32,7 m du firmware).

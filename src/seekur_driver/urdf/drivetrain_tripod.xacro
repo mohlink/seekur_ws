@@ -1,0 +1,78 @@
+<?xml version="1.0"?>
+<!-- =====================================================================
+     Train de roulement TRIPODE, traction AVANT (defaut, drivetrain:=tripod)
+     Inclus par seekur_jr_simple.urdf.xacro, qui fournit les proprietes
+     (base_length, wheel_radius, ...), les macros d'inertie et drive_wheel.
+     Geometrie identique a v10.2-tripode-traction-avant (2026-09-27).
+     ===================================================================== -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <!-- Roues motrices.
+         X : +base_length/4 (traction AVANT). Le vrai robot a 4 roues en
+             skid-steer ; ce modele en a 2 + une roulette arriere, donc
+             l'empattement reel (425 mm [DS]) ne s'applique pas ici.
+             Pourquoi l'avant : face a une bosse, les roues qui attaquent
+             l'obstacle doivent etre motrices ; une roulette poussee bute
+             et devient elle-meme l'obstacle. Valide sur mine_polycam.
+
+         Historique : v6-v9 = roues arriere + roulette avant ; v10.1 =
+         roues a x = 0 + 2 roulettes (gap 2 cm) : le chassis basculait
+         d'une roulette a l'autre (tangage +/-3.3 deg mesure a l'IMU sim)
+         et les fermetures de proximite RTAB-Map sont tombees de 5 a 0-1.
+         Abandonne ; reprise avec roulettes suspendues dans
+         drivetrain_center.xacro.
+
+         LIMITE CONNUE - centre de rotation.
+         Le vrai SeekurJR pivote au milieu de son empattement (x = 0).
+         Ce modele pivote autour de l'axe de ses deux roues (x = +0.263),
+         donc en rotation pure l'arriere decrit un arc de 26 cm de rayon
+         au lieu de tourner sur place. Biais systematique, borne, connu.
+         Le LiDAR (x = 0.535) est plus proche du pivot qu'en traction
+         arriere, ce qui limite son deplacement en rotation. -->
+    <xacro:drive_wheel side="right" x="${base_length / 4.0}" y="${-wheel_separation / 2.0}" />
+    <xacro:drive_wheel side="left"  x="${base_length / 4.0}" y="${wheel_separation / 2.0}" />
+
+    <!-- Roulette ARRIERE : PHYSIQUE SEULEMENT (absente du vrai SeekurJR,
+         gardee pour l'equilibre Gazebo du modele a 2 roues). Placee a
+         x = -base_length/3, elle est TIREE derriere le robot : elle roule
+         par-dessus les bosses au lieu d'y buter.
+         Touche le sol sans ecart (centre a -wheel_radius/2, rayon
+         wheel_radius/2) : trepied, pas de basculement.
+         Pas de visuel : elle apparaissait sous le chassis maille. -->
+    <link name="caster_wheel_link">
+        <collision>
+            <geometry>
+                <sphere radius="${wheel_radius / 2.0}" />
+            </geometry>
+            <origin xyz="0 0 0" rpy="0 0 0" />
+        </collision>
+        <xacro:sphere_inertia m="${caster_mass}" r="${wheel_radius / 2.0}"
+                             o_xyz="0 0 0" o_rpy="0 0 0" />
+    </link>
+
+    <joint name="base_caster_wheel_joint" type="fixed">
+        <parent link="base_link" />
+        <child link="caster_wheel_link" />
+        <origin xyz="${-base_length / 3.0} 0 ${-wheel_radius / 2.0}" rpy="0 0 0" />
+    </joint>
+
+    <gazebo reference="caster_wheel_link">
+        <material>Gazebo/Black</material>
+        <mu1 value="0.001" />
+        <mu2 value="0.001" />
+    </gazebo>
+
+    <!-- ==================================================================
+         Plugin JointStatePublisher : UNE SEULE declaration (par variante).
+         C'est lui qui produit l'etat (position/vitesse) des roues cote
+         Gazebo. Ce flux doit ensuite etre ponte vers ROS2 (/joint_states)
+         par ros_gz_bridge, sinon RViz2 affiche des roues figees.
+         ================================================================== -->
+    <gazebo>
+        <plugin filename="libgz-sim-joint-state-publisher-system.so" name="gz::sim::systems::JointStatePublisher">
+            <joint_name>base_left_wheel_joint</joint_name>
+            <joint_name>base_right_wheel_joint</joint_name>
+        </plugin>
+    </gazebo>
+
+</robot>

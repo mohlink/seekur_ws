@@ -63,13 +63,14 @@ def generate_launch_description():
     rviz_arg = LaunchConfiguration('rviz')
     driver_arg = LaunchConfiguration('driver')
     publish_tf_arg = LaunchConfiguration('publish_tf')
+    drivetrain_arg = LaunchConfiguration('drivetrain')
     pkg_share = FindPackageShare('seekur_driver')
 
     xacro_file = PathJoinSubstitution([
         pkg_share, 'urdf', 'seekur_jr_simple.urdf.xacro'
     ])
     robot_description = ParameterValue(
-        Command(['xacro ', xacro_file]),
+        Command(['xacro ', xacro_file, ' drivetrain:=', drivetrain_arg]),
         value_type=str
     )
 
@@ -118,6 +119,15 @@ def generate_launch_description():
             description='Le driver publie-t-il odom->base_footprint. '
                         'true en solo, false quand l EKF prend le relais '
                         '(sim_ekf.launch.py).',
+        ),
+        DeclareLaunchArgument(
+            'drivetrain',
+            default_value='tripod',
+            description='Train de roulement du modele sim : tripod (roues '
+                        'a l avant + 1 roulette, defaut) ou center (roues au '
+                        'centre + 2 roulettes suspendues). Voir urdf/'
+                        'drivetrain_*.xacro. Herite par sim_ekf, sim_rtabmap, '
+                        'sim_yolo : ros2 launch ... drivetrain:=center',
         ),
         # --- Gazebo Harmonic avec le monde selectionne ----------------------
         IncludeLaunchDescription(

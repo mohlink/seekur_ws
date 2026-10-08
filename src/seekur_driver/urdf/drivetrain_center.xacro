@@ -1,0 +1,116 @@
+<?xml version="1.0"?>
+<!-- =====================================================================
+     Train de roulement CENTRE + 2 ROULETTES SUSPENDUES (drivetrain:=center)
+     Inclus par seekur_jr_simple.urdf.xacro, qui fournit les proprietes
+     (base_length, wheel_radius, ...), les macros d'inertie et drive_wheel.
+
+     NOUVEAU (2026-10-08), A VALIDER EN SIM. Reprend la geometrie de
+     v10.1-diffdrive-centre mais remplace l'ecart fixe de 2 cm par une
+     suspension : chaque roulette est sur un joint prismatique vertical avec
+     ressort + amortisseur.
+
+     Pourquoi : roues motrices a x = 0 -> le modele pivote au centre comme
+     le vrai SeekurJR (le tripode pivote a x = +0.263). En v10.1, les
+     roulettes rigides surelevees laissaient le chassis basculer de l'une a
+     l'autre (+/-3.3 deg a l'IMU sim, fermetures RTAB-Map en baisse). Ici
+     les deux roulettes restent au sol avec une precharge : le tangage est
+     retenu par les ressorts au lieu d'aller en butee.
+
+     Implementation Gazebo : springStiffness / springReference (balises
+     <gazebo reference="joint">) sont convertis par sdformat 14 en
+     <spring_stiffness>/<spring_reference> et appliques par DART
+     (gz-physics 7). L'amortissement vient de <dynamics damping> URDF.
+     ===================================================================== -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <!-- Roulettes : meme position et taille que v10.1 -->
+    <xacro:property name="caster_radius" value="${wheel_radius / 2.0}" />  <!-- 0.1015 m -->
+    <xacro:property name="caster_x" value="${base_length / 3.0}" />         <!-- +/- 0.350 m -->
+
+    <!-- ================================================================
+         Suspension des roulettes [SIM] - valeurs de depart, a regler.
+         Convention du joint prismatique (axe +Z de base_link) :
+           q = 0   : bas de la sphere au niveau du sol plat (z = -wheel_radius)
+           q > 0   : roulette repoussee vers le HAUT (bosse)
+           q < 0   : roulette descendue (creux)
+         Ressort : F = -k (q - q_ref), avec q_ref = -preload, donc au repos
+         sur sol plat (q = 0) chaque roulette appuie de k * preload.
+
+         Dimensionnement (robot ~78.5 kg, ~770 N) :
+           k = 3000 N/m, preload 15 mm -> 45 N par roulette, soit ~12 % du
+             poids sur les roulettes ; ~88 % reste sur les roues motrices
+             (traction preservee).
+           Raideur en tangage : 2 k caster_x^2 = 735 N.m/rad.
+             Couple du LiDAR/camera en porte-a-faux (~6.7 N.m) -> ~0.5 deg
+             Acceleration 1 m/s2 (CG ~8 cm au-dessus de l'axe) -> ~0.5 deg
+             (contre 3.3 deg en v10.1). Une roulette ne decolle qu'au-dela
+             de ~31 N.m (decel ~4 m/s2) : on retombe alors en butee souple.
+           Amortissement : critique en tangage ~570 N.s/m par roulette
+             (Iyy ~6.7 kg.m2) ; 300 = ~0.5 critique, oscillation tuee en
+             1-2 periodes (~1.7 Hz).
+         Butees : -droop (descente dans un creux) a +travel (bosse).
+         Au-dela de travel, la roulette est en butee rigide comme en v10.1. -->
+    <xacro:property name="caster_k" value="3000.0" />        <!-- N/m -->
+    <xacro:property name="caster_preload" value="0.015" />   <!-- m -->
+    <xacro:property name="caster_damping" value="300.0" />   <!-- N.s/m -->
+    <xacro:property name="caster_droop" value="0.03" />      <!-- m, descente max sous le sol plat -->
+    <xacro:property name="caster_travel" value="0.06" />     <!-- m, remontee max au-dessus du sol plat -->
+
+    <!-- Roues motrices au CENTRE (x = 0) : pivot au milieu du robot. -->
+    <xacro:drive_wheel side="right" x="0" y="${-wheel_separation / 2.0}" />
+    <xacro:drive_wheel side="left"  x="0" y="${wheel_separation / 2.0}" />
+
+    <!-- Roulette suspendue : PHYSIQUE SEULEMENT (absente du vrai SeekurJR).
+         Sphere quasi sans frottement sur joint prismatique vertical.
+         Pas de visuel (masquee par le chassis maille). -->
+    <xacro:macro name="suspended_caster" params="name x">
+        <link name="${name}_caster_link">
+            <collision>
+                <geometry>
+                    <sphere radius="${caster_radius}" />
+                </geometry>
+                <origin xyz="0 0 0" rpy="0 0 0" />
+            </collision>
+            <xacro:sphere_inertia m="${caster_mass}" r="${caster_radius}"
+                                 o_xyz="0 0 0" o_rpy="0 0 0" />
+        </link>
+        <joint name="base_${name}_caster_joint" type="prismatic">
+            <parent link="base_link" />
+            <child link="${name}_caster_link" />
+            <!-- A q = 0 : bas de la sphere sur le sol plat -->
+            <origin xyz="${x} 0 ${-wheel_radius + caster_radius}" rpy="0 0 0" />
+            <axis xyz="0 0 1" />
+            <limit lower="${-caster_droop}" upper="${caster_travel}"
+                   effort="1000.0" velocity="2.0" />
+            <dynamics damping="${caster_damping}" friction="0.0" />
+        </joint>
+        <gazebo reference="base_${name}_caster_joint">
+            <springStiffness>${caster_k}</springStiffness>
+            <springReference>${-caster_preload}</springReference>
+        </gazebo>
+        <gazebo reference="${name}_caster_link">
+            <mu1 value="0.001" />
+            <mu2 value="0.001" />
+        </gazebo>
+    </xacro:macro>
+
+    <xacro:suspended_caster name="front" x="${caster_x}" />
+    <xacro:suspended_caster name="rear"  x="${-caster_x}" />
+
+    <!-- ==================================================================
+         Plugin JointStatePublisher : UNE SEULE declaration (par variante).
+         Publie aussi les 2 joints de suspension : robot_state_publisher en
+         a besoin pour les TF des roulettes (sinon RViz signale des links
+         sans transformation), et le debattement est observable en direct :
+           ros2 topic echo /joint_states  (base_front/rear_caster_joint)
+         ================================================================== -->
+    <gazebo>
+        <plugin filename="libgz-sim-joint-state-publisher-system.so" name="gz::sim::systems::JointStatePublisher">
+            <joint_name>base_left_wheel_joint</joint_name>
+            <joint_name>base_right_wheel_joint</joint_name>
+            <joint_name>base_front_caster_joint</joint_name>
+            <joint_name>base_rear_caster_joint</joint_name>
+        </plugin>
+    </gazebo>
+
+</robot>
