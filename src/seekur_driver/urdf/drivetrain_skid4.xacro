@@ -1,0 +1,78 @@
+<?xml version="1.0"?>
+<!-- =====================================================================
+     Train de roulement SKID-STEER 4 ROUES (drivetrain:=skid4)
+     Inclus par seekur_jr_simple.urdf.xacro, qui fournit les proprietes
+     (wheelbase, wheel_separation, ...), les macros d'inertie et drive_wheel.
+
+     Copie de la cinematique du VRAI SeekurJR (2026-10-08) : 4 roues
+     motrices aux positions reelles [DS] (x = +/- wheelbase/2 = +/- 0.2125,
+     y = +/- wheel_separation/2), aucune roulette. Les 2 roues d'un meme cote
+     tournent a la meme vitesse. Pour tourner, les pneus glissent
+     lateralement : c'est le principe du skid-steer.
+
+     Noms des joints : base_left/right_wheel_joint = roues AVANT (noms
+     communs a toutes les variantes : DiffDrive les met en premier pour
+     l'odometrie, les roues visuelles les suivent par mimic) ;
+     base_rear_left/right_wheel_joint = roues ARRIERE, ajoutees au plugin
+     DiffDrive via le bloc extra_drive_joints.
+
+     Pas d'hyperstatisme a corriger : sur sol plat les 4 pneus portent ;
+     sur sol irregulier une roue peut decoller, comme sur le vrai robot
+     (pneus 16 x 6.50-8, pas de suspension).
+
+     LIMITES CONNUES [SIM] :
+       - Le plugin DiffDrive calcule vitesses de roues ET odometrie avec
+         wheel_separation = 0.663 (cinematique differentielle). En
+         skid-steer, le glissement lateral fait que le robot tourne MOINS
+         vite que commande et que l'odometrie Gazebo SURESTIME la rotation.
+         Le vrai firmware corrige le cap avec son gyro ; ici l'EKF (IMU sim)
+         le fait. A mesurer : rapport lacet IMU / lacet commande en
+         rotation sur place.
+       - Frottements : longitudinal 1.0, lateral 0.6 (wheel_mu_lateral).
+         Plus le lateral est faible, plus le robot tourne facilement (et
+         moins il tient en devers). Valeur de depart, non mesuree.
+     ===================================================================== -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <xacro:property name="wheel_mu_long" value="1.0" />     <!-- dans le sens de roulement -->
+    <xacro:property name="wheel_mu_lateral" value="0.6" />  <!-- le long de l'axe de roue [SIM] -->
+
+    <!-- 4 roues motrices aux positions reelles -->
+    <xacro:drive_wheel side="right"      x="${wheelbase / 2.0}"  y="${-wheel_separation / 2.0}" />
+    <xacro:drive_wheel side="left"       x="${wheelbase / 2.0}"  y="${wheel_separation / 2.0}" />
+    <xacro:drive_wheel side="rear_right" x="${-wheelbase / 2.0}" y="${-wheel_separation / 2.0}" />
+    <xacro:drive_wheel side="rear_left"  x="${-wheelbase / 2.0}" y="${wheel_separation / 2.0}" />
+
+    <!-- Frottement anisotrope : fdir1 = axe de roue (Y du link, qui ne
+         change pas quand la roue tourne autour de Y). mu1 s'applique le
+         long de fdir1 (lateral), mu2 dans le sens de roulement.
+         DART lit fdir1 dans le repere du link de la roue. -->
+    <xacro:macro name="wheel_friction" params="side">
+        <gazebo reference="${side}_wheel_link">
+            <mu1>${wheel_mu_lateral}</mu1>
+            <mu2>${wheel_mu_long}</mu2>
+            <fdir1>0 1 0</fdir1>
+        </gazebo>
+    </xacro:macro>
+    <xacro:wheel_friction side="right" />
+    <xacro:wheel_friction side="left" />
+    <xacro:wheel_friction side="rear_right" />
+    <xacro:wheel_friction side="rear_left" />
+
+    <!-- Roues arriere ajoutees au plugin DiffDrive commun -->
+    <xacro:property name="extra_drive_joints">
+        <left_joint>base_rear_left_wheel_joint</left_joint>
+        <right_joint>base_rear_right_wheel_joint</right_joint>
+    </xacro:property>
+
+    <!-- JointStatePublisher : UNE SEULE declaration (par variante). -->
+    <gazebo>
+        <plugin filename="libgz-sim-joint-state-publisher-system.so" name="gz::sim::systems::JointStatePublisher">
+            <joint_name>base_left_wheel_joint</joint_name>
+            <joint_name>base_right_wheel_joint</joint_name>
+            <joint_name>base_rear_left_wheel_joint</joint_name>
+            <joint_name>base_rear_right_wheel_joint</joint_name>
+        </plugin>
+    </gazebo>
+
+</robot>

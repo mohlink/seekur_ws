@@ -172,6 +172,10 @@
            center_rear_spring : drivetrain_center_rear_spring.xacro
                              roues a x = 0 + roulette avant RIGIDE au sol
                              + roulette arriere SUSPENDUE (ressort).
+           skid4           : drivetrain_skid4.xacro
+                             4 roues motrices aux positions REELLES
+                             (x = +/-wheelbase/2), sans roulette : skid-steer
+                             comme le vrai SeekurJR.
          Une valeur inconnue fait echouer xacro (fichier introuvable).
          Le plugin DiffDrive (plus bas) est commun : memes noms de joints. -->
     <xacro:arg name="drivetrain" default="tripod"/>
@@ -200,6 +204,11 @@
             <axis xyz="0 1 0" />
         </joint>
     </xacro:macro>
+
+    <!-- Roues motrices supplementaires a ajouter au plugin DiffDrive (plus
+         bas). Vide par defaut ; une variante a plus de 2 roues motrices
+         (skid4) redefinit ce bloc avec ses <left_joint>/<right_joint>. -->
+    <xacro:property name="extra_drive_joints"><!-- aucune roue motrice supplementaire --></xacro:property>
 
     <xacro:include filename="drivetrain_$(arg drivetrain).xacro" />
 
@@ -425,6 +434,9 @@
             <left_joint>rear_left_wheel_visual_joint</left_joint>
             <right_joint>front_right_wheel_visual_joint</right_joint>
             <right_joint>rear_right_wheel_visual_joint</right_joint>
+            <!-- Roues motrices physiques supplementaires de la variante
+                 (vide sauf skid4, voir extra_drive_joints). -->
+            <xacro:insert_block name="extra_drive_joints" />
             <!-- Doivent rester coherents avec les proprietes xacro en tete
                  de fichier. Gazebo ne lit pas les ${} ici, d'ou la
                  duplication en dur des valeurs. -->

@@ -128,7 +128,9 @@ def generate_launch_description():
                         'centre + 2 roulettes suspendues) ou center_rigid '
                         '(roues au centre + 2 roulettes rigides a 2 mm du sol, '
                         'sol plat) ou center_rear_spring (roues au centre + '
-                        'roulette avant rigide + roulette arriere suspendue). '
+                        'roulette avant rigide + roulette arriere suspendue) '
+                        'ou skid4 (4 roues motrices aux positions reelles, '
+                        'skid-steer comme le vrai robot). '
                         'Voir urdf/drivetrain_*.xacro. Herite par sim_ekf, '
                         'sim_rtabmap, sim_yolo : ros2 launch ... drivetrain:=center_rigid',
         ),
