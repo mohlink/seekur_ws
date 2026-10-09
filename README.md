@@ -99,7 +99,7 @@ alias ros2nv='__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia ros2'
 **CycloneDDS n'est pas optionnel.** Avec FastDDS (le défaut de Jazzy), les
 topics caméra s'effondrent de 27 Hz à 6-13 Hz avec des blocages de près d'une
 seconde : FastDDS échoue à reconstituer les messages fragmentés sur loopback.
-Diagnostic complet documenté dans `urdf/seekur_jr_simple.urdf.xacro`.
+Diagnostic complet documenté dans `urdf/seekur_jr.urdf.xacro` (capteur caméra).
 
 ```bash
 sudo apt install ros-jazzy-rmw-cyclonedds-cpp
@@ -205,7 +205,9 @@ src/seekur_driver/
 │   └── seekur_viz.rviz
 ├── launch/                      # un fichier par mode (voir tableau)
 ├── urdf/
-│   └── seekur_jr_simple.urdf.xacro
+│   ├── seekur_jr.urdf.xacro           # modèle de référence : skid-steer 4 roues (sim + réel)
+│   ├── seekur_jr_variants.urdf.xacro  # variantes d'essai, drivetrain:=<nom>
+│   └── drivetrain_*.xacro             # trains de roulement des variantes
 ├── worlds/
 │   ├── build_mine_gallery.py    # générateur du SDF ci-dessous
 │   ├── mine_gallery.sdf

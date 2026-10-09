@@ -48,7 +48,8 @@ from launch.actions import (DeclareLaunchArgument, IncludeLaunchDescription,
                             TimerAction, AppendEnvironmentVariable)
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command
+from launch.substitutions import (LaunchConfiguration, PathJoinSubstitution, Command,
+                                  PythonExpression)
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.parameter_descriptions import ParameterValue
 
@@ -66,11 +67,17 @@ def generate_launch_description():
     drivetrain_arg = LaunchConfiguration('drivetrain')
     pkg_share = FindPackageShare('seekur_driver')
 
-    xacro_file = PathJoinSubstitution([
-        pkg_share, 'urdf', 'seekur_jr_simple.urdf.xacro'
+    # Modele : seekur_jr.urdf.xacro (reference, skid4) par defaut ;
+    # seekur_jr_variants.urdf.xacro des qu'une variante d'essai est demandee
+    # avec drivetrain:=<nom> (tripod, center, center_rigid,
+    # center_rear_spring, skid4).
+    xacro_args = PythonExpression([
+        "'", pkg_share, "/urdf/seekur_jr.urdf.xacro' if '", drivetrain_arg,
+        "' == '' else '", pkg_share,
+        "/urdf/seekur_jr_variants.urdf.xacro drivetrain:=", drivetrain_arg, "'",
     ])
     robot_description = ParameterValue(
-        Command(['xacro ', xacro_file, ' drivetrain:=', drivetrain_arg]),
+        Command(['xacro ', xacro_args]),
         value_type=str
     )
 
@@ -122,17 +129,18 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'drivetrain',
-            default_value='tripod',
-            description='Train de roulement du modele sim : tripod (roues '
-                        'a l avant + 1 roulette, defaut), center (roues au '
-                        'centre + 2 roulettes suspendues) ou center_rigid '
+            default_value='',
+            description='Vide (defaut) : modele de reference seekur_jr.urdf.xacro '
+                        '(skid-steer 4 roues, comme le vrai robot). Sinon, '
+                        'variante d essai de seekur_jr_variants.urdf.xacro : '
+                        'tripod (roues a l avant + 1 roulette), center (roues '
+                        'au centre + 2 roulettes suspendues), center_rigid '
                         '(roues au centre + 2 roulettes rigides a 2 mm du sol, '
-                        'sol plat) ou center_rear_spring (roues au centre + '
+                        'sol plat), center_rear_spring (roues au centre + '
                         'roulette avant rigide + roulette arriere suspendue) '
-                        'ou skid4 (4 roues motrices aux positions reelles, '
-                        'skid-steer comme le vrai robot). '
+                        'ou skid4 (identique au modele de reference). '
                         'Voir urdf/drivetrain_*.xacro. Herite par sim_ekf, '
-                        'sim_rtabmap, sim_yolo : ros2 launch ... drivetrain:=center_rigid',
+                        'sim_rtabmap, sim_yolo, slam : ros2 launch ... drivetrain:=tripod',
         ),
         # --- Gazebo Harmonic avec le monde selectionne ----------------------
         IncludeLaunchDescription(

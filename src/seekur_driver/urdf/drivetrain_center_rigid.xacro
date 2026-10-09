@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <!-- =====================================================================
      Train de roulement CENTRE + 2 ROULETTES RIGIDES (drivetrain:=center_rigid)
-     Inclus par seekur_jr_simple.urdf.xacro, qui fournit les proprietes
+     Inclus par seekur_jr_variants.urdf.xacro, qui fournit les proprietes
      (base_length, wheel_radius, ...), les macros d'inertie et drive_wheel.
 
      Variante SANS RESSORT de drivetrain_center.xacro (2026-10-08) :

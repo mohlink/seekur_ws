@@ -2,7 +2,7 @@
 <!-- =====================================================================
      Train de roulement CENTRE + roulette AVANT RIGIDE + roulette ARRIERE
      SUSPENDUE (drivetrain:=center_rear_spring)
-     Inclus par seekur_jr_simple.urdf.xacro, qui fournit les proprietes
+     Inclus par seekur_jr_variants.urdf.xacro, qui fournit les proprietes
      (base_length, wheel_radius, ...), les macros d'inertie et drive_wheel.
 
      Compromis entre center (2 ressorts) et center_rigid (2 butees),

@@ -18,6 +18,10 @@
                              ROG (chemins absolus differents). -->
     <xacro:arg name="lidar_pitch_deg" default="5"/>
     <xacro:arg name="mesh_uri" default="file://$(find seekur_driver)/description/meshes"/>
+    <!-- Train de roulement (voir drivetrain_*.xacro et le bloc TRAIN DE
+         ROULEMENT INTERCHANGEABLE plus bas). Ce fichier sert aux ESSAIS ; le
+         modele de reference est seekur_jr.urdf.xacro (skid4 seul). -->
+    <xacro:arg name="drivetrain" default="tripod"/>
 
     <!-- =======================================================
          Proprietes SeekurJR
@@ -79,7 +83,10 @@
            top chassis    = 0.113 + base_height       = 0.494 m du sol  [DS] OK -->
 
     <!-- Masses (datasheet : robot complet 77 kg) -->
-    <xacro:property name="base_mass" value="60.0" />         <!-- chassis + electronique -->
+    <!-- Chassis + electronique. Datasheet : robot complet 77 kg, roues
+         comprises. Variantes a 2 roues physiques : 60 + 2 x 8 + capteurs
+         ~1.5 = 77.5 kg. skid4 a 4 roues physiques : 44 + 4 x 8 + 1.5 = 77.5 kg. -->
+    <xacro:property name="base_mass" value="${44.0 if '$(arg drivetrain)' == 'skid4' else 60.0}" />
     <xacro:property name="wheel_mass" value="8.0" />         <!-- 16" pneumatique ~8 kg piece -->
     <xacro:property name="caster_mass" value="0.5" />        <!-- non present sur vrai SeekurJR, garde pour stabilite Gazebo -->
 
@@ -178,7 +185,7 @@
                              comme le vrai SeekurJR.
          Une valeur inconnue fait echouer xacro (fichier introuvable).
          Le plugin DiffDrive (plus bas) est commun : memes noms de joints. -->
-    <xacro:arg name="drivetrain" default="tripod"/>
+    <!-- (argument drivetrain declare en tete de fichier : base_mass en depend) -->
 
     <!-- Roue motrice : PHYSIQUE SEULEMENT (collision + inertie).
          Pas de visuel : ce sont les 4 roues visuelles, aux positions

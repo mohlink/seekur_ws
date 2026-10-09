@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <!-- =====================================================================
      Train de roulement SKID-STEER 4 ROUES (drivetrain:=skid4)
-     Inclus par seekur_jr_simple.urdf.xacro, qui fournit les proprietes
+     Inclus par seekur_jr_variants.urdf.xacro, qui fournit les proprietes
      (wheelbase, wheel_separation, ...), les macros d'inertie et drive_wheel.
 
      Copie de la cinematique du VRAI SeekurJR (2026-10-08) : 4 roues

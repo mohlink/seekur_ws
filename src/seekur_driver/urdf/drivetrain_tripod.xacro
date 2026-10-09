@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <!-- =====================================================================
      Train de roulement TRIPODE, traction AVANT (defaut, drivetrain:=tripod)
-     Inclus par seekur_jr_simple.urdf.xacro, qui fournit les proprietes
+     Inclus par seekur_jr_variants.urdf.xacro, qui fournit les proprietes
      (base_length, wheel_radius, ...), les macros d'inertie et drive_wheel.
      Geometrie identique a v10.2-tripode-traction-avant (2026-09-27).
      ===================================================================== -->

@@ -86,7 +86,9 @@ def generate_launch_description():
     pkg_share_dir = get_package_share_directory('seekur_driver')
     seekur_params = os.path.join(pkg_share_dir, 'config', 'seekur_params.yaml')
     rviz_config   = os.path.join(pkg_share_dir, 'config', 'seekur_viz_real.rviz')
-    xacro_file    = os.path.join(pkg_share_dir, 'urdf',   'seekur_jr_simple.urdf.xacro')
+    # Modele de reference (skid-steer 4 roues). joint_state_publisher (plus bas)
+    # publie ses 4 joints de roue a 0 : TF valides, roues fixes dans RViz.
+    xacro_file    = os.path.join(pkg_share_dir, 'urdf',   'seekur_jr.urdf.xacro')
 
     return LaunchDescription([
 

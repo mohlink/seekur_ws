@@ -34,7 +34,7 @@ def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time')
 
     xacro_file = PathJoinSubstitution([
-        FindPackageShare('seekur_driver'), 'urdf', 'seekur_jr_simple.urdf.xacro'
+        FindPackageShare('seekur_driver'), 'urdf', 'seekur_jr.urdf.xacro'
     ])
 
     robot_description = ParameterValue(

@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <!-- =====================================================================
      Train de roulement CENTRE + 2 ROULETTES SUSPENDUES (drivetrain:=center)
-     Inclus par seekur_jr_simple.urdf.xacro, qui fournit les proprietes
+     Inclus par seekur_jr_variants.urdf.xacro, qui fournit les proprietes
      (base_length, wheel_radius, ...), les macros d'inertie et drive_wheel.
 
      NOUVEAU (2026-10-08), A VALIDER EN SIM. Reprend la geometrie de
